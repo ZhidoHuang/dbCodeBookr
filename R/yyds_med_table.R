@@ -3,7 +3,7 @@
 #' 此函数用于提取由 \code{mediate} 函数（来自 \pkg{mediation} 包）生成的中介分析对象中的关键结果，
 #' 并将其格式化为易于阅读的数据框表格，方便后续展示或导出。
 #'
-#' @param model 一个 \code{mediate} 类对象，通常由 \code{mediate()} 函数生成。
+#' @param med_res 一个 \code{mediate} 类对象，通常由 \code{mediate()} 函数生成。
 #'
 #' @return 返回一个数据框（data.frame），包含以下列：
 #' \describe{

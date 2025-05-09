@@ -7,7 +7,7 @@
 yyds_med_table(med_res)
 }
 \arguments{
-\item{model}{一个 \code{mediate} 类对象，通常由 \code{mediate()} 函数生成。}
+\item{med_res}{一个 \code{mediate} 类对象，通常由 \code{mediate()} 函数生成。}
 }
 \value{
 返回一个数据框（data.frame），包含以下列：
