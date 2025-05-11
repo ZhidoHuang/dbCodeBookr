@@ -60,7 +60,7 @@
 #' survival_data$stage <- factor(survival_data$stage, levels = c("I","II","III"))
 #' survival_data$site <- factor(survival_data$site)
 #' #' 进行亚组分析
-#' result_cox <- sub_analysis(
+#' result_cox <- yyds_sub_analysis(
 #'   data = survival_data,
 #'   time = "time",
 #'   status = "status",
@@ -102,7 +102,7 @@
 #' bina_data$complication <- factor(bina_data$complication)
 #'
 #' # 进行亚组分析
-#' result_logistic <- sub_analysis(
+#' result_logistic <- yyds_sub_analysis(
 #'   data = bina_data,
 #'   family_type = "binomial",
 #'   status = "outcome",
@@ -120,7 +120,7 @@
 #'
 #' @export
 #'
-sub_analysis <- function(data,
+yyds_sub_analysis <- function(data,
                          time = NULL,
                          family_type = NULL,
                          status,
