@@ -95,28 +95,48 @@ yyds_coalesce <- function(data,
     # 获取该基础名对应的所有列
     cols_to_coalesce <- matched_cols[base_names == base]
 
-    # 创建新列名
-    new_col <- if (!is.null(new_suffix)) paste0(base, new_suffix) else base
-
-    # 执行coalesce操作
-    data[[new_col]] <- do.call(dplyr::coalesce, data[cols_to_coalesce])
+    # 判断是否要覆盖原始列
+    if (!is.null(new_suffix) && new_suffix %in% key_chr) {
+      # 如果new_suffix匹配key_chr中的一个，则覆盖对应的原始列
+      target_col <- paste0(base, new_suffix)
+      if (target_col %in% cols_to_coalesce) {
+        # 直接覆盖该列
+        data[[target_col]] <- do.call(dplyr::coalesce, data[cols_to_coalesce])
+        # 更新cols_to_coalesce，排除被覆盖的列
+        cols_to_coalesce <- setdiff(cols_to_coalesce, target_col)
+      } else {
+        # 如果目标列不存在，则创建新列
+        data[[target_col]] <- do.call(dplyr::coalesce, data[cols_to_coalesce])
+      }
+    } else {
+      # 常规情况：创建新列
+      new_col <- if (!is.null(new_suffix)) paste0(base, new_suffix) else base
+      data[[new_col]] <- do.call(dplyr::coalesce, data[cols_to_coalesce])
+    }
 
     # 验证合并结果（如果有验证变量）
     if (!is.null(valid_var)) {
+      # 确定要显示的目标列名
+      display_col <- if (!is.null(new_suffix) && new_suffix %in% key_chr) {
+        paste0(base, new_suffix)
+      } else {
+        ifelse(!is.null(new_suffix), paste0(base, new_suffix), base)
+      }
+
       validation <- data %>%
         dplyr::group_by(.data[[valid_var]]) %>%
         dplyr::summarise(
           dplyr::across(all_of(cols_to_coalesce), ~sum(!is.na(.))),
-          "{new_col}" := sum(!is.na(.data[[new_col]])),
+          "{display_col}" := sum(!is.na(.data[[display_col]])),
           .groups = "drop"
         )
 
-      cat(crayon::red("\n", new_col, "\n"))
+      cat(crayon::red("\n", display_col, "\n"))
       print(as.data.frame(validation))  # 避免tibble的截断打印
     }
 
     # 移除原始列（如果需要）
-    if (remove_original) {
+    if (remove_original && length(cols_to_coalesce) > 0) {
       data <- data[, !names(data) %in% cols_to_coalesce, drop = FALSE]
     }
   }
