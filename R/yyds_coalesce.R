@@ -14,6 +14,7 @@
 #' @details
 #' 该函数主要用于处理具有相同变量但来自不同来源的数据（如调查数据中的多波次测量）。
 #' 它会自动识别具有相同基础变量名但不同后缀/前缀的列，并使用dplyr::coalesce合并它们。
+#' 合并列位于第一个子列之前，便于后续分析。
 #'
 #' @examples
 #' \dontrun{
@@ -45,101 +46,71 @@ yyds_coalesce <- function(data,
                           key_chr = c("_a", "_b", "_c"),
                           pattern = c("ends_with", "starts_with", "contains"),
                           new_suffix = NULL,
-                          valid_var = NULL,
+                          valid_var  = NULL,
                           remove_original = TRUE) {
 
-  # 参数验证
-  if (!is.data.frame(data)) stop("\n data must be a data frame")
-  if (length(key_chr) < 2) stop("\n key_chr must contain at least 2 elements for coalescing")
+  # -------- 参数检查 --------
+  if (!is.data.frame(data))           stop("data must be a data frame")
+  if (length(key_chr) < 2)            stop("key_chr must have ≥2 elements")
   pattern <- match.arg(pattern)
-  if (!is.null(valid_var) && !valid_var %in% names(data)) {
+  if (!is.null(valid_var) && !valid_var %in% names(data))
     stop(paste("Validation variable", valid_var, "not found in data"))
-  }
 
-  # 辅助函数：转义正则特殊字符
-  escape_regex <- function(x) {
-    gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", x)
-  }
+  # -------- 内部工具 --------
+  esc <- function(x) gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", x)
 
-  # 根据pattern类型构建正则表达式
   regex_pattern <- switch(pattern,
-                          "ends_with" = paste0("(", paste(escape_regex(key_chr), collapse = "|"), ")$"),
-                          "starts_with" = paste0("^(", paste(escape_regex(key_chr), collapse = "|"), ")"),
-                          "contains" = paste0("(", paste(escape_regex(key_chr), collapse = "|"), ")")
+                          ends_with   = paste0("(", paste(esc(key_chr), collapse = "|"), ")$"),
+                          starts_with = paste0("^(", paste(esc(key_chr), collapse = "|"), ")"),
+                          contains    = paste0("(", paste(esc(key_chr), collapse = "|"), ")")
   )
 
-  # 获取匹配的列名
   matched_cols <- grep(regex_pattern, names(data), value = TRUE)
+  if (length(matched_cols) == 0) return(data)    # 没匹配直接返回
 
-  # 提取基础列名（去除key_chr部分）
   base_names <- switch(pattern,
-                       "ends_with" = sub(paste0("(", paste(escape_regex(key_chr), collapse = "|"), ")$"), "", matched_cols),
-                       "starts_with" = sub(paste0("^(", paste(escape_regex(key_chr), collapse = "|"), ")"), "", matched_cols),
-                       "contains" = sapply(matched_cols, function(x) {
-                         for (k in key_chr) {
-                           if (grepl(escape_regex(k), x)) {
-                             return(sub(escape_regex(k), "", x))
-                           }
-                         }
-                         return(x)
-                       })
+                       ends_with   = sub(paste0("(", paste(esc(key_chr), collapse = "|"), ")$"), "", matched_cols),
+                       starts_with = sub(paste0("^(", paste(esc(key_chr), collapse = "|"), ")"), "", matched_cols),
+                       contains    = vapply(matched_cols, function(x) {
+                         for (k in key_chr) if (grepl(esc(k), x)) return(sub(esc(k), "", x))
+                         x
+                       }, FUN.VALUE = character(1))
   )
 
-  # 统计每个基础名出现的次数
-  base_counts <- table(base_names)
-  bases_to_process <- names(base_counts)[base_counts >= 2]  # 至少有两个匹配列才处理
+  # -------- 主循环 --------
+  for (base in unique(base_names[duplicated(base_names)])) {
 
-  # 对每个基础名进行处理
-  for (base in bases_to_process) {
+    cols_to_merge <- matched_cols[base_names == base]
+    first_subcol  <- cols_to_merge[which.min(match(cols_to_merge, names(data)))]
+    new_col       <- if (!is.null(new_suffix)) paste0(base, new_suffix) else base
 
-    # 获取该基础名对应的所有列
-    cols_to_coalesce <- matched_cols[base_names == base]
+    # 1) 生成新列
+    data <- dplyr::mutate(
+      data,
+      !!new_col := dplyr::coalesce(!!!rlang::syms(cols_to_merge))
+    )
 
-    # 判断是否要覆盖原始列
-    if (!is.null(new_suffix) && new_suffix %in% key_chr) {
-      # 如果new_suffix匹配key_chr中的一个，则覆盖对应的原始列
-      target_col <- paste0(base, new_suffix)
-      if (target_col %in% cols_to_coalesce) {
-        # 直接覆盖该列
-        data[[target_col]] <- do.call(dplyr::coalesce, data[cols_to_coalesce])
-        # 更新cols_to_coalesce，排除被覆盖的列
-        cols_to_coalesce <- setdiff(cols_to_coalesce, target_col)
-      } else {
-        # 如果目标列不存在，则创建新列
-        data[[target_col]] <- do.call(dplyr::coalesce, data[cols_to_coalesce])
-      }
-    } else {
-      # 常规情况：创建新列
-      new_col <- if (!is.null(new_suffix)) paste0(base, new_suffix) else base
-      data[[new_col]] <- do.call(dplyr::coalesce, data[cols_to_coalesce])
-    }
+    # 2) 把新列挪到第一子列前
+    data <- dplyr::relocate(data, !!new_col, .before = dplyr::all_of(first_subcol))
 
-    # 验证合并结果（如果有验证变量）
+    # 3) 打印验证信息（仅打印，不写回 data）
     if (!is.null(valid_var)) {
-      # 确定要显示的目标列名
-      display_col <- if (!is.null(new_suffix) && new_suffix %in% key_chr) {
-        paste0(base, new_suffix)
-      } else {
-        ifelse(!is.null(new_suffix), paste0(base, new_suffix), base)
-      }
-
       validation <- data %>%
         dplyr::group_by(.data[[valid_var]]) %>%
         dplyr::summarise(
-          dplyr::across(all_of(cols_to_coalesce), ~sum(!is.na(.))),
-          "{display_col}" := sum(!is.na(.data[[display_col]])),
+          dplyr::across(all_of(cols_to_merge), ~ sum(!is.na(.x))),
+          "{new_col}" := sum(!is.na(.data[[new_col]])),
           .groups = "drop"
         )
-
-      cat(crayon::red("\n", display_col, "\n"))
-      print(as.data.frame(validation))  # 避免tibble的截断打印
+      cat(crayon::red("\n", new_col, "\n"))
+      print(as.data.frame(validation))
     }
 
-    # 移除原始列（如果需要）
-    if (remove_original && length(cols_to_coalesce) > 0) {
-      data <- data[, !names(data) %in% cols_to_coalesce, drop = FALSE]
+    # 4) 删除旧列
+    if (remove_original) {
+      data <- dplyr::select(data, -dplyr::all_of(cols_to_merge))
     }
   }
 
-  return(data)
+  data
 }
