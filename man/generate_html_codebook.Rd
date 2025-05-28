@@ -40,7 +40,7 @@ HTML 片段}，包括
    必含列 \tab 说明 \cr
    \code{category} \tab 一级分类（将生成 \emph{details} 折叠块） \cr
    \code{variable} \tab 变量名（将生成锚点 \verb{#var-<variable>}） \cr
-   \code{YYYY...} \tab 若干以 \strong{4 位数字开头}的列 (= 年度频数 / 统计量) \cr
+   年份列 \tab \strong{以 4 位数字}或 \strong{\code{Year} / \code{Wave}} 开头的列（如\code{2019},  \code{Year2019}, \code{Wave_1}） (= 年度频数 / 统计量) \cr
    其他列 \tab 视为 \emph{辅助信息}，会显示在热力图左侧 \cr
 }
 

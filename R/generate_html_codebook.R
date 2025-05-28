@@ -17,7 +17,7 @@
 #'   |---------|---------------------------------------------------------------|
 #'   | `category` | 一级分类（将生成 *details* 折叠块） |
 #'   | `variable` | 变量名（将生成锚点 `#var-<variable>`） |
-#'   | `YYYY...` | 若干以 **4 位数字开头**的列 (= 年度频数 / 统计量) |
+#'   | 年份列    | **以&nbsp;4 位数字**或 **`Year` / `Wave`** 开头的列（如`2019`,  `Year2019`, `Wave_1`） (= 年度频数 / 统计量) |
 #'   | 其他列    | 视为 *辅助信息*，会显示在热力图左侧 |
 #'
 #' * **`meta_df`**
@@ -93,7 +93,7 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL) {
   slug <- function(x) gsub("[^A-Za-z0-9_-]", "-", x)      # safe-id helper
 
   ## ---- identify column groups -------------------------------------------
-  year_cols <- grep("^\\d{4}", names(heat_df), value = TRUE)   # 年份列：名称以4位数字起头
+  year_cols <- grep("^(\\d{4}|Year|Wave)", names(heat_df), value = TRUE)   # 年份列：名称以4位数字起头
   aux_cols  <- setdiff(names(heat_df),
                        c("category", "variable", year_cols))   # 其余即辅助信息列
 
