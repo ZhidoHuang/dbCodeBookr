@@ -132,7 +132,7 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL) {
       colspan <- 1 + length(aux_cols) + length(year_cols)
       cat_id  <- sprintf("cat-%s", slug(cat_name))
       cat_row <- sprintf(
-        '<tr><td colspan="%d" style="background-color:#2C3E50;color:#fff;font-weight:bold;padding:6px;border-radius:6px;text-align:center;"><a href="#%s" style="color:#fff;text-decoration:none;">%s</a></td></tr>',
+        '<tr><td colspan="%d" style="background-color:#2C3E50;color:#fff;font-weight:bold;padding:6px;border-radius:6px;font-size:20px;text-align:center;"><a href="#%s" style="color:#fff;text-decoration:none;">%s</a></td></tr>',
         colspan, cat_id, esc(cat_name)
       )
 
