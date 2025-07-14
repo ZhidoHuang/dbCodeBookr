@@ -84,6 +84,16 @@ yyds_coalesce <- function(data,
     first_subcol  <- cols_to_merge[which.min(match(cols_to_merge, names(data)))]
     new_col       <- if (!is.null(new_suffix)) paste0(base, new_suffix) else base
 
+
+    validation1 <- data %>%
+      dplyr::group_by(.data[[valid_var]]) %>%
+      dplyr::summarise(
+        dplyr::across(all_of(cols_to_merge), ~ sum(!is.na(.x))),
+        .groups = "drop"
+      )
+
+
+
     # 1) 生成新列
     data <- dplyr::mutate(
       data,
@@ -93,22 +103,25 @@ yyds_coalesce <- function(data,
     # 2) 把新列挪到第一子列前
     data <- dplyr::relocate(data, !!new_col, .before = dplyr::all_of(first_subcol))
 
+    new_col2 <- paste0("  -→ ", new_col)
+
     # 3) 打印验证信息（仅打印，不写回 data）
     if (!is.null(valid_var)) {
-      validation <- data %>%
+      validation2 <- data %>%
         dplyr::group_by(.data[[valid_var]]) %>%
         dplyr::summarise(
-          dplyr::across(all_of(cols_to_merge), ~ sum(!is.na(.x))),
-          "{new_col}" := sum(!is.na(.data[[new_col]])),
+          "{new_col2}" := sum(!is.na(.data[[new_col]])),
           .groups = "drop"
         )
+      validation <- dplyr::left_join(validation1, validation2, by = valid_var)
       cat(crayon::red("\n", new_col, "\n"))
       print(as.data.frame(validation))
     }
 
     # 4) 删除旧列
     if (remove_original) {
-      data <- dplyr::select(data, -dplyr::all_of(cols_to_merge))
+      cols_to_remove <- setdiff(cols_to_merge, new_col)
+      data <- dplyr::select(data, -dplyr::all_of(cols_to_remove))
     }
   }
 
