@@ -14,7 +14,10 @@
 #' @param plot_file （可选）字符串，输出 HTML 可视化图的文件名前缀，默认值为 `"plot_medication"`。
 #' @param plot_ncol （可选）整数，指定每行显示的图数量，默认值为 3。
 #'
-#' @return 返回一个数据框，包含所有变量的中介分析汇总表格（Total effect, ACME, ADE, proportion mediated 等）。
+#' @return 返回一个列表：
+#'  - 包含所有变量的中介分析汇总表格（Total effect, ACME, ADE, proportion mediated 等）；
+#'  - 报错记录；
+#'  - 输出文件名。
 #'
 #' @details
 #' 函数会对每一个 `xvar` 中的暴露变量执行一次中介分析，分别构建中介模型与结果模型，并使用 `mediation::mediate()` 计算中介效应。
@@ -73,100 +76,137 @@ yyds_1m_mediction <- function(data,
                               outcome,
                               time_var = NULL,
                               family_type = NULL, sims = 100,
-                              plot_file = "plot_medication", plot_ncol = 3
-) {
-  # 检查输入参数
-  # 检查 time_var 和 family_type 是否同时为 NULL
+                              plot_file = "plot_medication", plot_ncol = 3) {
+  # 基本检查
   if (is.null(time_var) && is.null(family_type)) {
     stop("\n Error: Either 'time_var' (for survival analysis) or 'family_type' (for regression) must be provided.")
   }
-
-  # 检查 time_var 和 family_type 不能同时出现
   if (!is.null(time_var) && !is.null(family_type)) {
     stop("\n Error: 'time_var' and 'family_type' cannot be used together. Please choose one.")
   }
-
-  # 检查 med 变量类型是否有效：要么是0/1，要么是连续变量
   if (!all(unique(data[[med]]) %in% c(0, 1)) && !is.numeric(data[[med]])) {
     stop("\n Error: 'med' should be a variable with values 0 and 1, or a continuous variable.")
   }
 
-  med_table_all <- data.frame()
-  p_list <- list()
-  for (variable in xvar) {
-    all_var <- unique(c(variable, med, covar, outcome, time_var))
-    covar_final <- setdiff(covar, c(variable, med))
-    covar_final_B <- paste(covar_final, collapse = "+")
-    datas1 <- na.omit(data[, all_var])
+  # 工具函数：安全执行并标注阶段
+  error_log <- data.frame(variable = character(),
+                          stage    = character(),
+                          message  = character(),
+                          stringsAsFactors = FALSE)
 
-    # 1. 结果模型：根据 time_var 判断是否是生存分析
-    if (!is.null(time_var)) {
-      f1_formula <- as.formula(paste("Surv(", time_var, ",", outcome, ") ~",
-                                     variable, "+", med, "+", covar_final_B))
-      model_out <- survival::survreg(f1_formula, dist = "weibull", data = datas1)
-    } else {
-      f1_formula <- as.formula(paste(outcome, "~", variable, "+", med, "+", covar_final_B))
-
-      # 2. 根据 family_type 传入正确的 family
-      if (family_type == "binomial") {
-        model_out <- glm(f1_formula, family = binomial(), data = datas1)
-      } else if (family_type == "gaussian") {
-        model_out <- glm(f1_formula, family = gaussian(), data = datas1)
-      } else if (family_type == "poisson") {
-        model_out <- glm(f1_formula, family = poisson(), data = datas1)
-      } else {
-        stop("Unsupported family_type. Please use 'binomial', 'gaussian', or 'poisson'.")
-      }
-    }
-
-    # 3. 判断 med 是否为二分类变量
-    is_binary_med <- length(unique(datas1[[med]])) == 2
-
-    if (is_binary_med) {
-      # 二分类变量，使用逻辑回归
-      f2_formula <- as.formula(paste(med, "~", variable, "+", covar_final_B))
-      model_med <- glm(f2_formula, family = binomial(), data = datas1)
-    } else {
-      # 连续变量，使用线性回归
-      f2_formula <- as.formula(paste(med, "~", variable, "+", covar_final_B))
-      model_med <- lm(f2_formula, data = datas1)
-    }
-
-    # 4. 中介分析
-    warn_messages <- character(0)
-    mediate_result <- withCallingHandlers(
-      {
-        set.seed(123)
-        mediation::mediate(model_med, model_out,
-                           sims = sims, bootstrap = TRUE, boot.ci.type = "perc",
-                           treat = variable, mediator = med)
-      },
-      warning = function(w) {
-        warn_messages <<- c(warn_messages, conditionMessage(w))
-        invokeRestart("muffleWarning")
+  safe_run <- function(expr, variable, stage) {
+    tryCatch(
+      force(expr),
+      error = function(e) {
+        error_log <<- rbind(error_log,
+                            data.frame(variable = variable,
+                                       stage    = stage,
+                                       message  = conditionMessage(e),
+                                       stringsAsFactors = FALSE))
+        # 抛出以便上层 tryCatch 捕获并跳到下一个变量
+        stop(e)
       }
     )
+  }
 
-    # 5. 汇总输出
-    med_table <- yyds_med_table(mediate_result)
-    med_table[1,6] <- paste0(variable, "→", med, "→", outcome)
-    med_table[2,6] <- paste0("sample size: ", mediate_result$model.y$df.residual)
-    if (length(warn_messages) > 0) {
-      med_table[3,6] <- paste0("Warning: ", paste(warn_messages, collapse = "; "))
-    }
+  # 工具函数：拼接公式右侧项，自动忽略空串
+  join_terms <- function(...) {
+    terms <- unlist(list(...))
+    terms <- terms[!is.na(terms) & terms != ""]
+    paste(terms, collapse = " + ")
+  }
 
-    model.m.text <- gsub("f2_formula", paste(deparse(f2_formula), collapse = ""), paste(deparse(mediate_result$model.m$call), collapse = ""))
-    model.y.text <- gsub("f1_formula", paste(deparse(f1_formula), collapse = ""), paste(deparse(mediate_result$model.y$call), collapse = ""))
-    med_table[1,7] <- paste0(paste(model.m.text,"\n\n"),
-                             paste(model.y.text, "\n\n"),
-                             paste(deparse(mediate_result$call), collapse = ""))
+  med_table_all <- data.frame()
+  p_list <- list()
 
-    cat("\n\n", variable, "→", med, "→", outcome, "\n")
-    # 表格汇总
-    med_table_all <- rbind(med_table_all, med_table[1:4,], med_table[99,])
+  for (variable in xvar) {
+    # 每个变量一个大 tryCatch：失败就记录并继续下一个
+    tryCatch({
+      all_var <- unique(c(variable, med, covar, outcome, time_var))
+      covar_final <- setdiff(covar, c(variable, med))
+      covar_final_B <- if (length(covar_final)) paste(covar_final, collapse = " + ") else ""
 
-    if (!is.null(plot_file)) {
-      p <- DiagrammeR::grViz(glue::glue('
+      datas1 <- stats::na.omit(data[, all_var, drop = FALSE])
+
+      # 1) 结果模型
+      if (!is.null(time_var)) {
+        rhs <- join_terms(variable, med, covar_final_B)
+        f1_formula <- as.formula(paste0("Surv(", time_var, ",", outcome, ") ~ ", rhs))
+        model_out <- safe_run(survival::survreg(f1_formula, dist = "weibull", data = datas1),
+                              variable, "fit_outcome_survreg")
+      } else {
+        rhs <- join_terms(variable, med, covar_final_B)
+        f1_formula <- as.formula(paste(outcome, "~", rhs))
+        if (family_type == "binomial") {
+          model_out <- safe_run(glm(f1_formula, family = binomial(), data = datas1),
+                                variable, "fit_outcome_glm_binomial")
+        } else if (family_type == "gaussian") {
+          model_out <- safe_run(glm(f1_formula, family = gaussian(), data = datas1),
+                                variable, "fit_outcome_glm_gaussian")
+        } else if (family_type == "poisson") {
+          model_out <- safe_run(glm(f1_formula, family = poisson(), data = datas1),
+                                variable, "fit_outcome_glm_poisson")
+        } else {
+          stop("Unsupported family_type. Please use 'binomial', 'gaussian', or 'poisson'.")
+        }
+      }
+
+      # 2) 中介模型
+      is_binary_med <- length(unique(datas1[[med]])) == 2
+      rhs_med <- join_terms(variable, covar_final_B)
+      f2_formula <- as.formula(paste(med, "~", rhs_med))
+      if (is_binary_med) {
+        model_med <- safe_run(glm(f2_formula, family = binomial(), data = datas1),
+                              variable, "fit_mediator_glm_binomial")
+      } else {
+        model_med <- safe_run(lm(f2_formula, data = datas1),
+                              variable, "fit_mediator_lm")
+      }
+
+      # 3) 中介分析 + 捕获 warning
+      warn_messages <- character(0)
+      mediate_result <- safe_run(
+        withCallingHandlers(
+          {
+            set.seed(123)
+            mediation::mediate(model_med, model_out,
+                               sims = sims, bootstrap = TRUE, boot.ci.type = "perc",
+                               treat = variable, mediator = med)
+          },
+          warning = function(w) {
+            warn_messages <<- c(warn_messages, conditionMessage(w))
+            invokeRestart("muffleWarning")
+          }
+        ),
+        variable, "mediate"
+      )
+
+      # 4) 汇总输出
+      med_table <- yyds_med_table(mediate_result)
+      med_table[1, 6] <- paste0(variable, "→", med, "→", outcome)
+      # 用样本量更直观；若想沿用 df.residual 可改回
+      med_table[2, 6] <- paste0("sample size: ", nrow(datas1))
+      if (length(warn_messages) > 0) {
+        med_table[3, 6] <- paste0("Warning: ", paste(warn_messages, collapse = "; "))
+      }
+
+      model.m.text <- gsub("f2_formula", paste(deparse(f2_formula), collapse = ""),
+                           paste(deparse(mediate_result$model.m$call), collapse = ""))
+      model.y.text <- gsub("f1_formula", paste(deparse(f1_formula), collapse = ""),
+                           paste(deparse(mediate_result$model.y$call), collapse = ""))
+      med_table[1, 7] <- paste0(
+        paste(model.m.text, "\n\n"),
+        paste(model.y.text,  "\n\n"),
+        paste(deparse(mediate_result$call), collapse = "")
+      )
+
+      cat("\n\n", variable, "→", med, "→", outcome, "\n")
+      med_table_all <- rbind(med_table_all, med_table[1:4, ], med_table[99, ])
+
+      # 5) 画图（失败也不影响整体）
+      if (!is.null(plot_file)) {
+        p <- try({
+          DiagrammeR::grViz(glue::glue('
 digraph simple_mediation {{
   graph [layout = dot, rankdir = LR, ranksep = 0.5, nodesep = 1.5]
   node [shape=box, style=filled, fontname="Helvetica-Bold", fontcolor=black, penwidth=2, fontsize=16, fixedsize=true, width=1.5, height=0.8, margin=0.1]
@@ -213,35 +253,38 @@ Prop. Mediated = {round(med_table[4,2]*100, 1)}%, p = {med_table[4,5]}",
   X -> Y [label = "Total Effect = {med_table[1,2]}, p = {med_table[1,5]}", fontname=Helvetica, fontcolor=black, style=dashed, color=gray50]
 }}
 '))
-      p_list[[variable]] <- p
-    }
+        }, silent = TRUE)
+
+        if (!inherits(p, "try-error")) {
+          p_list[[variable]] <- p
+        } else {
+          error_log <- rbind(error_log,
+                             data.frame(variable = variable,
+                                        stage    = "plot",
+                                        message  = as.character(attr(p, "condition")$message %||% "plot error"),
+                                        stringsAsFactors = FALSE))
+        }
+      }
+
+    }, error = function(e) {
+      # 已在 safe_run 记录；这里静默继续下一个变量
+      invisible(NULL)
+    })
   }
 
-
-  if (!is.null(plot_file)) {
-
-    if (is.null(plot_ncol)) {
-      num_per_row <- 3
-    } else {
-      num_per_row <- plot_ncol
-    }
-
-    # 计算多少行
+  # 6) 保存拼图（只要至少有一个成功）
+  saved_plot_file <- NULL
+  if (!is.null(plot_file) && length(p_list) > 0) {
+    num_per_row <- if (is.null(plot_ncol)) 3 else plot_ncol
     num_rows <- ceiling(length(p_list) / num_per_row)
-
-    # 创建多个 div 来实现按列排布
     combined <- htmltools::tagList()
 
     for (row in 1:num_rows) {
-      # 获取当前行的图形
       start_index <- (row - 1) * num_per_row + 1
       end_index <- min(row * num_per_row, length(p_list))
       row_plots <- p_list[start_index:end_index]
-
-      # 计算每列的宽度百分比
       col_width <- 100 / num_per_row
 
-      # 使用 flexbox 布局将当前行的图形并排显示
       row_html <- htmltools::tags$div(
         style = "display: flex; flex-wrap: wrap; justify-content: center;",
         lapply(row_plots, function(plot) {
@@ -251,16 +294,19 @@ Prop. Mediated = {round(med_table[4,2]*100, 1)}%, p = {med_table[4,5]}",
           )
         })
       )
-
-      # 将当前行的 HTML 添加到 combined 中
       combined <- htmltools::tagAppendChild(combined, row_html)
     }
 
-    # 保存 HTML 文件
-    htmltools::save_html(combined, file = paste0(plot_file,".html"))
-    cat("\n Plot saved as '",plot_file,".html'.")
+    htmltools::save_html(combined, file = paste0(plot_file, ".html"))
+    cat("\n Plot saved as '", plot_file, ".html'.")
+    saved_plot_file <- paste0(plot_file, ".html")
   }
 
-
-  return(med_table_all)
+  # 返回结果与错误日志
+  return(list(
+    results    = med_table_all,
+    errors     = error_log,
+    plots_file = saved_plot_file
+  ))
 }
+

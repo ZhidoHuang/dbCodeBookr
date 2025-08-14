@@ -39,7 +39,12 @@ yyds_1m_mediction(
 \item{plot_ncol}{（可选）整数，指定每行显示的图数量，默认值为 3。}
 }
 \value{
-返回一个数据框，包含所有变量的中介分析汇总表格（Total effect, ACME, ADE, proportion mediated 等）。
+返回一个列表：
+\itemize{
+\item 包含所有变量的中介分析汇总表格（Total effect, ACME, ADE, proportion mediated 等）；
+\item 报错记录；
+\item 输出文件名。
+}
 }
 \description{
 针对多个暴露变量与一个结局变量之间的关系，执行中介分析，并通过指定的中介变量评估间接效应。
