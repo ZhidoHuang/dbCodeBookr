@@ -337,11 +337,8 @@ yyds_table2 <- function(model,
 
   # 5. 格式化输出列（动态判断参考组）-------------------------------------
   effect_format <- paste0("%.", effect_digits, "f")
-  is_ref <- if (model_type == "linear") {
-    result$Effect == 0 & result$Lower_CI == 0 & result$Upper_CI == 0
-  } else {
-    result$Effect == 1 & result$Lower_CI == 1 & result$Upper_CI == 1
-  }
+  is_ref <- !is.na(result$p_value) & result$p_value == "-"
+
   result$Effect_CI <- ifelse(
     is.na(result$Effect), NA,
     ifelse(is_ref, "Ref",
