@@ -3,7 +3,7 @@
 \encoding{UTF-8}
 \name{yyds_svytable1}
 \alias{yyds_svytable1}
-\title{复杂抽样加权基线表（Table 1）}
+\title{复杂抽样加权基线表}
 \usage{
 yyds_svytable1(
   design,
@@ -26,110 +26,101 @@ yyds_svytable1(
 )
 }
 \arguments{
-\item{design}{A \code{\link[survey]{survey.design}} 或
-\code{svyrep.design} 对象（分别由 \code{\link[survey]{svydesign}} 与
-\code{\link[survey]{svrepdesign}} 构造）。待分析变量（含 \code{group}）
-需存在于 \code{design$variables} 中。}
+\item{design}{A \code{\link[survey:svydesign]{survey.design}} 或
+\code{\link[survey:svrepdesign]{svyrep.design}} 对象（分别由
+\code{\link[survey:svydesign]{svydesign()}} 与 \code{\link[survey:svrepdesign]{svrepdesign()}} 构造）。
+待分析的变量（含 \code{group}）需存在于 \code{design$variables} 中。}
 
 \item{group}{分组公式字符串，例如 \code{"~sex"}。将按其因子水平生成分组列。}
 
-\item{vars_cont}{\code{character}。近似正态的连续变量名向量。若 \code{ci_cont = TRUE}
-显示 Mean(95\\% CI)，否则显示 Mean(SE)。}
+\item{vars_cont}{\code{character}。近似正态的连续变量名向量。若 \code{ci_cont = TRUE} 显示 \emph{Mean (95\% CI)}，
+否则显示 \emph{Mean (SE)}。}
 
-\item{vars_nn_cont}{\code{character}。非正态的连续变量名向量。若 \code{ci_nn_cont = TRUE}
-显示 Median(95\\% CI)，否则显示 Median\link{IQR}。}
+\item{vars_nn_cont}{\code{character}。非正态的连续变量名向量。若 \code{ci_nn_cont = TRUE} 显示
+\emph{Median (95\% CI)}，否则显示 \emph{Median \link{IQR}}。}
 
-\item{vars_categ}{\code{character}。分类变量名向量（建议确保为因子；其 \code{levels}
-决定显示顺序）。}
+\item{vars_categ}{\code{character}。分类变量名向量（建议确保为因子；其 \code{levels} 决定显示顺序）。}
 
-\item{categ_style}{单元格样式（分类比例）。可选：
+\item{categ_style}{分类比例的单元格样式，取值：
 \itemize{
-\item \code{"percent"}：只显示百分比（不带 \\% 符号；行名会追加 \code{", \%"}）；
-\item \code{"number_percent"}：未加权计数 + 百分比（例：\code{n (xx.x) }）；
-\item \code{"Number_percent"}：加权计数 + 百分比（例：\code{N (xx.x)}，\eqn{N} 为权重求和后四舍五入）；
-\item \code{"percent_SE"}：百分比 + SE（例：\code{xx.x (SE)}，SE 也以“百分点”呈现）。
-}
-若 \code{ci_categ = TRUE}，总是以 95\\% CI 为准并覆盖 \code{categ_style} 的 SE 形式。}
+\item \code{"percent"}：只显示百分比（不带 \verb{\%}；行名会追加 \code{", \%"}）
+\item \code{"number_percent"}：未加权计数 + 百分比（如 \code{n (xx.x)}）
+\item \code{"Number_percent"}：加权计数 + 百分比（如 \code{N (xx.x)}，\code{N} 为权重和后四舍五入）
+\item \code{"percent_SE"}：百分比 + SE（如 \code{xx.x (SE)}，SE 也以“百分点”呈现）
 
-\item{ci_cont}{\code{logical}。连续（近似正态）是否显示 95\\% CI（\code{TRUE} = Mean(95\\% CI)，
-\code{FALSE} = Mean(SE)）。}
+当 \code{ci_categ = TRUE} 时，总是以 95\% CI 为准并覆盖 \code{percent_SE} 的展示。
+}}
 
-\item{ci_nn_cont}{\code{logical}。连续（非正态）是否显示 95\\% CI（\code{TRUE} = Median(95\\% CI)，
-\code{FALSE} = Median\link{IQR}）。}
+\item{ci_cont}{\code{logical}。连续（近似正态）是否显示 95\% CI（\code{TRUE}=Mean(95\% CI)，\code{FALSE}=Mean(SE)）。}
 
-\item{ci_categ}{\code{logical}。分类比例是否显示 95\\% CI（与 \code{se_categ} 同为 \code{TRUE} 时，CI 优先）。}
+\item{ci_nn_cont}{\code{logical}。连续（非正态）是否显示 95\% CI（\code{TRUE}=Median(95\% CI)，\code{FALSE}=Median\link{IQR}）。}
 
-\item{ci_categ_method}{\code{character}。\code{\link[survey]{svyciprop}} 的区间方法。
-当前函数严格接受以下 6 个全名：\code{"logit"}, \code{"likelihood"},
-\code{"asin"}, \code{"beta"}, \code{"xlogit"}, \code{"mean"}。}
+\item{ci_categ}{\code{logical}。分类比例是否显示 95\% CI（若与 \code{se_categ} 同为 \code{TRUE}，CI 优先）。}
+
+\item{ci_categ_method}{\code{character}。\code{\link[survey:svyciprop]{survey::svyciprop()}} 使用的区间方法。
+本函数严格接受以下 6 个全名：\code{"logit"}, \code{"likelihood"}, \code{"asin"}, \code{"beta"}, \code{"xlogit"}, \code{"mean"}。}
 
 \item{digits_cont}{\code{integer}。连续型数值的小数位（均值/SE/CI/中位数/IQR）。}
 
 \item{digits_categ}{\code{integer}。比例的小数位。}
 
-\item{digits_p}{\code{integer}。P 值小数位；当 \eqn{p < 10^{-digits\_p}} 时显示为
-\code{"<0.00...1"}（例如 \code{digits_p = 3} 时显示 \code{"<0.001"}）。}
+\item{digits_p}{\code{integer}。P 值小数位；当 \code{p < 10^{-digits_p}} 时显示为 \code{"<0.00...1"}（如 \code{digits_p=3} 显示 \code{"<0.001"}）。}
 
 \item{show_n}{\code{logical}。是否显示表头未加权样本量 \code{N (unweighted)}。}
 
-\item{show_N}{\code{logical}。是否显示表头加权样本量 \code{N (weighted)}。
-其含义为按组 \code{\link[survey]{svytable}} 的权重和（回退为权重求和）；
-\emph{不一定等于总体人数}。}
+\item{show_N}{\code{logical}。是否显示表头加权样本量 \code{N (weighted)}（按组 \code{\link[survey:svychisq]{survey::svytable()}} 的权重和；
+退化时回退为权重求和；\strong{不一定等于总体人数}）。}
 
 \item{showOverall}{\code{logical}。是否增加 \code{Overall} 列。}
 
-\item{showAllLevels}{\code{logical}。若为 \code{FALSE} 且变量为二分类，仅展示第二个
-水平 \code{levels(x)[2]}，并与变量名同行输出；同时在 \code{Test} 列\emph{追加}该水平名
-（形如 \code{"Yes  |  Rao–Scott chi-square (design-based F)"}）。如需固定展示
-“阳性/Yes”，请在外部将因子水平设为 \code{c("No","Yes")}。}
+\item{showAllLevels}{\code{logical}。若为 \code{FALSE} 且变量为二分类，仅展示第二个水平 \code{levels(x)[2]}，
+并与变量名同行输出；同时在 \code{Test} 列\strong{追加}该水平名（形如 \code{"Yes  |  Rao–Scott chi-square (design-based F)"}）。
+如需固定展示“阳性/Yes”，请先把因子水平设为 \code{c("No","Yes")}。}
 }
 \value{
-一个 \code{data.frame}，列包括：
+\code{data.frame}，列包括：
 \itemize{
-\item \code{"Characteristics"}：变量名（必要时带单位后缀，如 \code{", \%"}；二分类合并时只保留 \code{level2} 的一行）；
-\item 各组列名为分组因子水平（若 \code{showOverall = TRUE} 还包含 \code{"Overall"}）；
-\item \code{"P"}：对应的组间比较 P 值（按格式规则打印）；
-\item \code{"Test"}：所用检验方法；二分类合并行会在方法前拼接所统计的水平标签（例如
-\code{"Yes  |  Rao–Scott chi-square (design-based F)"}）。
+\item \code{Characteristics}：变量名（必要时带单位后缀，如 \code{", \%"}；二分类合并时只保留 level2 的一行）
+\item 分组列：各组因子水平（若 \code{showOverall = TRUE} 还包含 \code{Overall}）
+\item \code{P}：组间比较 P 值（按 \code{digits_p} 规则打印）
+\item \code{Test}：所用检验；二分类合并行会在方法前拼接所统计的水平（如 \code{"Yes  |  Rao–Scott chi-square (design-based F)"}）
 }
 }
 \description{
-在 \pkg{survey} 复杂抽样设计下，按分组变量一次性生成“基线表”（Table 1）。
-支持三类变量：\emph{分类}（比例，可选 95\\% CI/SE）、\emph{连续近似正态}
-（Mean(SE) 或 Mean(95\\% CI)）、\emph{连续非正态}（Median\link{IQR} 或 Median(95\\% CI)）；
-\emph{差异检验}包括：Rao–Scott \eqn{\chi^2}（设计型 F 近似，分类），
-设计型 t 检验 / Wald F（近似正态），以及设计型 Wilcoxon / 秩 ANOVA（非正态）。
+在 \strong{survey} 复杂抽样设计下，按分组变量一次性生成“基线表”（Table 1）。
+支持三类变量：\emph{分类}（比例，可选 95\% CI/SE）、\emph{连续近似正态}（Mean(SE) 或 Mean(95\% CI)）、
+\emph{连续非正态}（Median\link{IQR} 或 Median(95\% CI)）；\emph{差异检验}包括：
+Rao–Scott chi-square（设计型 F 近似，分类）、设计型 t 检验 / Wald F（近似正态），
+以及设计型 Wilcoxon / 秩 ANOVA（非正态）。
 }
 \details{
-\strong{分类变量：}
+\strong{分类变量}
 \itemize{
 \item 单元格：对每个水平构造指示变量 \code{.ind}；对每个分组子设计计算
-\code{svyciprop(~ .ind, ...)}（若 \code{ci_categ = TRUE}）或
-\code{svyby(~ .ind, ~ .g, svymean, vartype = "se")}（若 \code{categ_style = "percent_SE"}）；
-其他样式使用相应的点估计与格式化。
-\item P 值：\code{svychisq(~ var + group, statistic = "F")}（Rao–Scott \eqn{\chi^2}
-的设计型 F 近似）。
+\code{\link[survey:svyciprop]{svyciprop()}}（若 \code{ci_categ = TRUE}）或
+\code{\link[survey:svyby]{svyby()}} + \code{\link[survey:surveysummary]{svymean()}}（若 \code{categ_style = "percent_SE"}）；
+其他样式使用相应点估计并格式化。
+\item P 值：\code{\link[survey:svychisq]{svychisq()}}（\code{statistic = "F"}，Rao–Scott chi-square 的设计型 F 近似）。
 \item 二分类合并：当 \code{showAllLevels = FALSE} 时，仅显示 \code{levels(var)[2]}。
 }
 
-\strong{连续（近似正态）：}
+\strong{连续（近似正态）}
 \itemize{
-\item 单元格：\code{svyby(~ x, ~ group, svymean, vartype = "se"/"ci")}；总体列使用
-\code{svymean} 并配合 \code{confint}（当需要 CI）。
-\item P 值：两组用 \code{svyttest(x ~ group)}；三组及以上用
-\code{svyglm(x ~ group)} + \code{\link[survey]{regTermTest}}（Wald F）。
+\item 单元格：\code{\link[survey:svyby]{svyby()}} + \code{\link[survey:surveysummary]{svymean()}}（\code{vartype = "se"} 或 \code{"ci"}）。
+\code{Overall} 用 \code{svymean()}，需要 CI 时配合 \code{confint()}。
+\item P 值：两组用 \code{\link[survey:svyttest]{svyttest()}}；三组及以上用
+\code{\link[survey:svyglm]{svyglm()}} + \code{\link[survey:regTermTest]{regTermTest()}}（Wald F）。
 }
 
-\strong{连续（非正态）：}
+\strong{连续（非正态）}
 \itemize{
-\item 单元格：默认 \code{Median [Q1, Q3]}（\code{svyquantile} 取 25/50/75\\% 分位）；
-若 \code{ci_nn_cont = TRUE} 输出 \code{Median (95\% CI)}。
-\item P 值：两组用 \code{svyranktest(x ~ group)}；三组及以上将秩作为响应做
-\code{svyglm(rank(x) ~ group)} + \code{\link[survey]{regTermTest}}。
+\item 单元格：默认 \emph{Median \link{Q1, Q3}}（\code{\link[survey:svyquantile]{svyquantile()}} 取 25/50/75\% 分位）；
+若 \code{ci_nn_cont = TRUE} 输出 \emph{Median (95\% CI)}。
+\item P 值：两组用 \code{\link[survey:svyranktest]{svyranktest()}}；三组及以上将秩作为响应做
+\code{svyglm(rank(x) ~ group)} + \code{regTermTest()}。
 }
 
-区间估计默认使用 \code{degf(design)} 作为自由度；当计算失败（如某域权重为 0）
-时，函数会优雅回退到点估计或留空字符串。
+区间估计默认使用 \code{degf(design)} 作为自由度；当计算失败（如某域权重为 0）时，将优雅回退到点估计或留空字符串。
 }
 \examples{
 \donttest{
@@ -137,7 +128,7 @@ yyds_svytable1(
   data(api)
   dclus1 <- svydesign(id = ~dnum, weights = ~pw, data = apiclus1, fpc = ~fpc)
 
-  # 示例 1：按 stype 分组的基线表（分类 + 连续）
+  # 示例 1：按 stype 分组（分类 + 连续）
   tab1 <- yyds_svytable1(
     design = dclus1,
     group  = "~stype",
@@ -171,8 +162,7 @@ yyds_svytable1(
 
 }
 \seealso{
-\code{\link[survey]{svymean}}, \code{\link[survey]{svyciprop}},
-\code{\link[survey]{svychisq}}, \code{\link[survey]{svyttest}},
-\code{\link[survey]{svyranktest}}, \code{\link[survey]{svyglm}},
-\code{\link[survey]{regTermTest}}, \code{\link[survey]{svyquantile}}
+\code{\link[survey:surveysummary]{survey::svymean()}}, \code{\link[survey:svyciprop]{survey::svyciprop()}}, \code{\link[survey:svychisq]{survey::svychisq()}},
+\code{\link[survey:svyttest]{survey::svyttest()}}, \code{\link[survey:svyranktest]{survey::svyranktest()}}, \code{\link[survey:svyglm]{survey::svyglm()}},
+\code{\link[survey:regTermTest]{survey::regTermTest()}}, \code{\link[survey:svyquantile]{survey::svyquantile()}}
 }
