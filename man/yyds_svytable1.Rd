@@ -78,8 +78,12 @@ yyds_svytable1(
 }
 \description{
 在 \strong{survey} 复杂抽样设计下，创建一个便于在医学研究论文中使用的描述性表格。
-支持三类变量\strong{分类}（比例，可选 95\% CI/SE）、\strong{正态连续型}（Mean(SE) 或 Mean(95\% CI)）、
-\strong{非正态连续型}（Median\link{IQR} 或 Median(95\% CI)），自适配\strong{差异检验}见Details。
+支持三类变量，对应\strong{差异检验}见\strong{Details}。
+\itemize{
+\item \strong{分类}：n(\%)，N(\%)，\%，\%(se)，或 \%(ci)；
+\item \strong{正态连续型}：Mean(SE) 或 Mean(95\% CI)；
+\item \strong{非正态连续型}：Median[IQR] 或 Median(95\% CI)。
+}
 }
 \details{
 \strong{分类变量}
