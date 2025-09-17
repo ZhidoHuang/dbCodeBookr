@@ -2,83 +2,60 @@
 #'
 #' 在 **survey** 复杂抽样设计下，按分组变量一次性生成“基线表”（Table 1）。
 #' 支持三类变量：*分类*（比例，可选 95% CI/SE）、*连续近似正态*（Mean(SE) 或 Mean(95% CI)）、
-#' *连续非正态*（Median[IQR] 或 Median(95% CI)）；*差异检验*包括：
-#' Rao–Scott chi-square（设计型 F 近似，分类）、设计型 t 检验 / Wald F（近似正态），
-#' 以及设计型 Wilcoxon / 秩 ANOVA（非正态）。
+#' *连续非正态*（Median[IQR] 或 Median(95% CI)）；*差异检验*见Details。
 #'
 #' @encoding UTF-8
 #'
-#' @param design A [`survey.design`][survey::svydesign] 或
-#'   [`svyrep.design`][survey::svrepdesign] 对象（分别由
-#'   [`svydesign()`][survey::svydesign] 与 [`svrepdesign()`][survey::svrepdesign] 构造）。
-#'   待分析的变量（含 `group`）需存在于 `design$variables` 中。
-#' @param group 分组公式字符串，例如 `"~sex"`。将按其因子水平生成分组列。
-#' @param vars_cont `character`。近似正态的连续变量名向量。若 `ci_cont = TRUE` 显示 *Mean (95% CI)*，
-#'   否则显示 *Mean (SE)*。
-#' @param vars_nn_cont `character`。非正态的连续变量名向量。若 `ci_nn_cont = TRUE` 显示
-#'   *Median (95% CI)*，否则显示 *Median [IQR]*。
+#' @param design 加权对象。
+#' @param group 分组分层变量。
+#' @param vars_cont `character`。变量名向量（正态分布）。
+#' @param vars_nn_cont `character`。变量名向量（非正态分布）。
 #' @param vars_categ `character`。分类变量名向量（建议确保为因子；其 `levels` 决定显示顺序）。
 #' @param categ_style 分类比例的单元格样式，取值：
-#' - `"percent"`：只显示百分比（不带 `%`；行名会追加 `", %"`）
-#' - `"number_percent"`：未加权计数 + 百分比（如 `n (xx.x)`）
-#' - `"Number_percent"`：加权计数 + 百分比（如 `N (xx.x)`，`N` 为权重和后四舍五入）
-#' - `"percent_SE"`：百分比 + SE（如 `xx.x (SE)`，SE 也以“百分点”呈现）
-#'
-#'   当 `ci_categ = TRUE` 时，总是以 95% CI 为准并覆盖 `percent_SE` 的展示。
-#' @param ci_cont `logical`。连续（近似正态）是否显示 95% CI（`TRUE`=Mean(95% CI)，`FALSE`=Mean(SE)）。
-#' @param ci_nn_cont `logical`。连续（非正态）是否显示 95% CI（`TRUE`=Median(95% CI)，`FALSE`=Median[IQR]）。
+#' - `"percent"`：只显示百分比；
+#' - `"number_percent"`：未加权计数 + 百分比（如 `n (xx.x)`；
+#' - `"Number_percent"`：加权计数 + 百分比（如 `N (xx.x)`；
+#' - `"percent_SE"`：百分比 + SE（如 `xx.x (SE)`；
+#' - 当 `ci_categ = TRUE` 时，categ_style被屏蔽。
+#' @param ci_cont `logical`。`TRUE`=*Mean (95% CI)*（对正态分布连续变量）。
+#' @param ci_nn_cont `logical`。`TRUE`=*Median (95% CI)*（对非正态分布连续变量）。
 #' @param ci_categ `logical`。分类比例是否显示 95% CI（若与 `se_categ` 同为 `TRUE`，CI 优先）。
-#' @param ci_categ_method `character`。[`survey::svyciprop()`] 使用的区间方法。
-#'   本函数严格接受以下 6 个全名：`"logit"`, `"likelihood"`, `"asin"`, `"beta"`, `"xlogit"`, `"mean"`。
-#' @param digits_cont `integer`。连续型数值的小数位（均值/SE/CI/中位数/IQR）。
-#' @param digits_categ `integer`。比例的小数位。
-#' @param digits_p `integer`。P 值小数位；当 `p < 10^{-digits_p}` 时显示为 `"<0.00...1"`（如 `digits_p=3` 显示 `"<0.001"`）。
-#' @param show_n `logical`。是否显示表头未加权样本量 `N (unweighted)`。
-#' @param show_N `logical`。是否显示表头加权样本量 `N (weighted)`（按组 [`survey::svytable()`] 的权重和；
-#'   退化时回退为权重求和；**不一定等于总体人数**）。
+#' @param ci_categ_method `character`。使用[`survey::svyciprop()`] 计算区间得方法。
+#' - `"logit"`：Logit 变换区间，稳定常用
+#' - `"beta"`：Beta 分布区间，适合比例接近 0/1 或小样本
+#' - 其余 `"likelihood"`, `"asin"`, `"xlogit"`, `"mean"` 见 `?survey::svyciprop`
+#' @param digits_cont `integer`。连续型数值的小数位数。
+#' @param digits_categ `integer`。比例的小数位数。
+#' @param digits_p `integer`。P 值小数位数。
+#' @param show_n `logical`。是否显示表头未加权样本量 `n (unweighted)`。
+#' @param show_N `logical`。是否显示表头加权样本量 `N (weighted)`。
 #' @param showOverall `logical`。是否增加 `Overall` 列。
 #' @param showAllLevels `logical`。若为 `FALSE` 且变量为二分类，仅展示第二个水平 `levels(x)[2]`，
 #'   并与变量名同行输出；同时在 `Test` 列**追加**该水平名（形如 `"Yes  |  Rao–Scott chi-square (design-based F)"`）。
 #'   如需固定展示“阳性/Yes”，请先把因子水平设为 `c("No","Yes")`。
 #'
-#' @return
-#' `data.frame`，列包括：
-#'
-#' - `Characteristics`：变量名（必要时带单位后缀，如 `", %"`；二分类合并时只保留 level2 的一行）
-#' - 分组列：各组因子水平（若 `showOverall = TRUE` 还包含 `Overall`）
-#' - `P`：组间比较 P 值（按 `digits_p` 规则打印）
-#' - `Test`：所用检验；二分类合并行会在方法前拼接所统计的水平（如 `"Yes  |  Rao–Scott chi-square (design-based F)"`）
 #'
 #' @details
 #' **分类变量**
 #'
-#' - 单元格：对每个水平构造指示变量 `.ind`；对每个分组子设计计算
-#'   [`svyciprop()`][survey::svyciprop]（若 `ci_categ = TRUE`）或
-#'   [`svyby()`][survey::svyby] + [`svymean()`][survey::svymean]（若 `categ_style = "percent_SE"`）；
-#'   其他样式使用相应点估计并格式化。
+#' - 若 `ci_categ = TRUE`，展示*Prop (95% CI)*，用[`svyciprop()`][survey::svyciprop]对每个分组子设计计算；
+#' - 若 `categ_style = "percent_SE"`，展示*Prop (SE)*，用[`svyby()`][survey::svyby] + [`svymean()`][survey::svymean]估计；
+#' - 其他样式使用相应点估计并格式化。
 #' - P 值：[`svychisq()`][survey::svychisq]（`statistic = "F"`，Rao–Scott chi-square 的设计型 F 近似）。
 #' - 二分类合并：当 `showAllLevels = FALSE` 时，仅显示 `levels(var)[2]`。
 #'
 #' **连续（近似正态）**
 #'
-#' - 单元格：[`svyby()`][survey::svyby] + [`svymean()`][survey::svymean]（`vartype = "se"` 或 `"ci"`）。
-#'   `Overall` 用 `svymean()`，需要 CI 时配合 `confint()`。
+#' - 默认*Mean (SE)*，若 `ci_nn_cont = TRUE`，展示*Mean (95% CI)*，通过[`svyby()`][survey::svyby] + [`svymean()`][survey::svymean]（`vartype = "se"` 或 `"ci"`）计算。
 #' - P 值：两组用 [`svyttest()`][survey::svyttest]；三组及以上用
 #'   [`svyglm()`][survey::svyglm] + [`regTermTest()`][survey::regTermTest]（Wald F）。
 #'
 #' **连续（非正态）**
 #'
-#' - 单元格：默认 *Median [Q1, Q3]*（[`svyquantile()`][survey::svyquantile] 取 25/50/75% 分位）；
-#'   若 `ci_nn_cont = TRUE` 输出 *Median (95% CI)*。
-#' - P 值：两组用 [`svyranktest()`][survey::svyranktest]；三组及以上将秩作为响应做
-#'   `svyglm(rank(x) ~ group)` + `regTermTest()`。
+#' - 默认*Median \[Q1, Q3\]*，若 `ci_nn_cont = TRUE`，展示*Median (95% CI)*，通过[`svyby()`][survey::svyby] + [`svyquantile()`][survey::svyquantile] 取 25/50/75% 分位（或 `vartype ="ci"`）；
+#' - P 值：用[`svyranktest()`][survey::svyranktest]参数设置test = "wilcoxon" （两组），或者test = "KruskalWallis" （三组及以上）。
 #'
-#' 区间估计默认使用 `degf(design)` 作为自由度；当计算失败（如某域权重为 0）时，将优雅回退到点估计或留空字符串。
 #'
-#' @section 选择分类比例区间方法（`ci_categ_method`）：
-#' - `"logit"`：Logit 变换区间，稳定常用
-#' - `"beta"`：Beta 分布区间，适合比例接近 0/1 或小样本
-#' - 其余 `"likelihood"`, `"asin"`, `"xlogit"`, `"mean"` 见 `?survey::svyciprop`
 #'
 #' @examples
 #' \donttest{
@@ -119,9 +96,10 @@
 #' }
 #'
 #' @seealso
-#' [survey::svymean()], [survey::svyciprop()], [survey::svychisq()],
-#' [survey::svyttest()], [survey::svyranktest()], [survey::svyglm()],
-#' [survey::regTermTest()], [survey::svyquantile()]
+#' \code{\link[survey]{svymean}}, \code{\link[survey]{svyciprop}},
+#' \code{\link[survey]{svychisq}}, \code{\link[survey]{svyttest}},
+#' \code{\link[survey]{svyranktest}}, \code{\link[survey]{svyglm}},
+#' \code{\link[survey]{regTermTest}}, \code{\link[survey]{svyquantile}}
 #'
 #' @export
 yyds_svytable1 <- function(
@@ -142,9 +120,9 @@ yyds_svytable1 <- function(
     digits_categ   = 1,
     digits_p       = 3,                     # P 值小数位
     show_n         = TRUE,                  # 表头 N (unweighted)
-    show_N         = FALSE,                 # 表头 N (weighted)
-    showOverall    = FALSE,                 # 是否增加 Overall 列
-    showAllLevels  = TRUE                   # FALSE 且二分类：仅 level2，变量名与数值同一行，Test 拼接水平名
+    show_N         = TRUE,                  # 表头 N (weighted)
+    showOverall    = TRUE,                  # 是否增加 Overall 列
+    showAllLevels  = FALSE                  # FALSE 且二分类：仅 level2，变量名与数值同一行，Test 拼接水平名
 ){
   # ---- 选项与工具 ----
   categ_style <- match.arg(categ_style)
@@ -157,14 +135,27 @@ yyds_svytable1 <- function(
   lev_cols <- if (isTRUE(showOverall)) c("Overall", lev_grp) else lev_grp
 
   safe_num <- function(x) as.numeric(unlist(x))
+  get_p_from_rank <- function(obj){
+    pv <- suppressWarnings(tryCatch(as.numeric(obj$p.value)[1], error=function(e) NA_real_))
+    if (!is.finite(pv)) {
+      # 两种常见字段名：statistic/parameter（KW 为χ²和df；Wilcoxon常给Z或t近似）
+      stat <- suppressWarnings(tryCatch(as.numeric(obj$statistic)[1], error=function(e) NA_real_))
+      par  <- suppressWarnings(tryCatch(as.numeric(obj$parameter)[1], error=function(e) NA_real_))
+      meth <- suppressWarnings(tryCatch(as.character(obj$method)[1],   error=function(e) NA_character_))
+
+      if (is.finite(stat) && grepl("Kruskal", meth, ignore.case = TRUE) && is.finite(par) && par > 0) {
+        pv <- pchisq(stat, df = par, lower.tail = FALSE)  # KW: χ² 近似
+      } else if (is.finite(stat) && grepl("wilcoxon", meth, ignore.case = TRUE)) {
+        pv <- 2 * pnorm(abs(stat), lower.tail = FALSE)     # Wilcoxon: Z 近似
+      }
+    }
+    pv
+  }
   fmt_p <- function(p, d = digits_p) {
     if (length(p) == 0 || is.na(p) || !is.finite(p)) return("")
     thr <- 10^(-d)
-    if (p < thr) {
-      paste0("<", sprintf(paste0("%.", d, "f"), thr))
-    } else {
-      sprintf(paste0("%.", d, "f"), p)
-    }
+    if (p < thr) paste0("<", sprintf(paste0("%.", d, "f"), thr))
+    else sprintf(paste0("%.", d, "f"), p)
   }
   fmt_pct    <- function(p, d=digits_categ) sprintf(paste0("%.",d,"f"), 100*safe_num(p))
   fmt_pct_ci <- function(ph, lo, hi, d=digits_categ)
@@ -197,9 +188,7 @@ yyds_svytable1 <- function(
     med <- tryCatch(as.numeric(coef(obj)[1]), error = function(e) NA_real_)
     ci  <- tryCatch(confint(obj), error = function(e) NULL)
     if (is.na(med)) return("")
-    if (is.null(ci)) {
-      sprintf(paste0("%.", d, "f"), med)
-    } else {
+    if (is.null(ci)) sprintf(paste0("%.", d, "f"), med) else {
       if (is.matrix(ci)) { lo <- as.numeric(ci[1,1]); hi <- as.numeric(ci[1,2]) }
       else               { lo <- as.numeric(ci[1]);   hi <- as.numeric(ci[2])   }
       sprintf(paste0("%.", d, "f (%.", d, "f-%.", d, "f)"), med, lo, hi)
@@ -553,7 +542,7 @@ yyds_svytable1 <- function(
         tt <- try(svyttest(as.formula(paste0(v, " ~ .g")), tmp), silent = TRUE)
         if (!inherits(tt, "try-error")) {
           method_used <- "Design-based t-test (svyttest)"
-          p_val <- tryCatch(safe_num(summary(tt)$p.value), error=function(e) NA_real_)
+          p_val <- tryCatch(safe_num(tt$p.value), error=function(e) NA_real_)
         } else k <- 3
       }
       if (k >= 3 && is.na(p_val)) {
@@ -615,23 +604,24 @@ yyds_svytable1 <- function(
         cells <- c(Overall = overall_cell, cells)
       }
 
-      # 检验：两组秩检验 / 多组秩 ANOVA
+      # 检验：两组 Wilcoxon；多组 Kruskal–Wallis（都用 svyranktest）
       des_ok <- subset(design, !is.na(design$variables[[v]]) & !is.na(design$variables[[g]]))
       k <- nlevels(factor(des_ok$variables[[g]]))
       method_used <- ""; p_val <- NA_real_
+
       if (k == 2) {
-        rt <- try(svyranktest(as.formula(paste0(v, " ~ ", g)), design = des_ok), silent = TRUE)
+        rt <- try(svyranktest(as.formula(paste0(v, " ~ ", g)),
+                              design = des_ok, test = "wilcoxon"), silent = TRUE)
         if (!inherits(rt, "try-error")) {
           method_used <- "Design-based Wilcoxon (svyranktest)"
-          p_val <- tryCatch(safe_num(summary(rt)$p.value), error=function(e) NA_real_)
+          p_val <- get_p_from_rank(rt)
         }
       } else if (k >= 3) {
-        ranks <- rank(des_ok$variables[[v]], na.last = "keep", ties.method = "average")
-        des_r <- update(des_ok, .rank = ranks, .g = factor(des_ok$variables[[g]]))
-        fit <- try(svyglm(.rank ~ .g, design = des_r, na.action = na.omit), silent = TRUE)
-        if (!inherits(fit, "try-error")) {
-          p_val <- tryCatch(regTermTest(fit, ~ .g)$p, error=function(e) NA_real_)
-          method_used <- "Design-based rank ANOVA (svyglm on ranks)"
+        rt <- try(svyranktest(as.formula(paste0(v, " ~ ", g)),
+                              design = des_ok, test = "KruskalWallis"), silent = TRUE)
+        if (!inherits(rt, "try-error")) {
+          method_used <- "Design-based Kruskal–Wallis (svyranktest)"
+          p_val <- get_p_from_rank(rt)
         }
       }
 
