@@ -1,11 +1,11 @@
 #' 创建复杂抽样加权的基线表
 #'
-#' 在 **survey** 复杂抽样设计下，创建一个便于在医学研究论文中使用的描述性表格。
-#' 支持三类变量，对应**差异检验**见**Details**。
-#' - **分类**：n(%)，N(%)，%，%(se)，或 %(ci)；
-#' - **正态连续型**：Mean(SE) 或 Mean(95% CI)；
-#' - **非正态连续型**：Median\[IQR\] 或 Median(95% CI)。
-#'
+#' 在 **survey** 包复杂抽样设计下，创建一个便于在医学研究论文中使用的描述性表格。
+#' 支持三类变量，展示形式可选：
+#' - **分类**：n(%)，N(%)，%，%(se)，或 %(95% CI)；
+#' - **正态连续型**：Mean(SE)，或 Mean(95% CI)；
+#' - **非正态连续型**：Median\[IQR\]，或 Median(95% CI)。
+#' - **差异检验**：见**Details**。
 #' @encoding UTF-8
 #'
 #' @param design 加权对象。
@@ -14,35 +14,32 @@
 #' @param vars_nn_cont `character`，变量名向量（非正态连续型）。
 #' @param vars_categ `character`，分类变量名向量（建议确保为因子；其 `levels` 决定显示顺序）。
 #' @param categ_style `character`，分类比例的单元格样式，取值：
-#' - `"percent"`：只显示百分比；
-#' - `"number_percent"`：未加权计数（百分比）；
-#' - `"Number_percent"`：加权计数（百分比）；
-#' - `"percent_SE"`：百分比（SE）；
-#' - 注意 `ci_categ = TRUE` 参数级别高于categ_style。
+#' - `"number_percent"`：n(%)（n为未加权计数）；
+#' - `"Number_percent"`：N(%)（N为加权计数）；
+#' - `"percent"`：%；
+#' - `"percent_SE"`：%(se)；
+#' - 若 `ci_categ = TRUE` 优先展示 %(95% CI)。
 #' @param ci_cont `logical`，`TRUE`展示Mean (95% CI)（对正态分布连续变量）。
 #' @param ci_nn_cont `logical`，`TRUE`展示Median (95% CI)（对非正态分布连续变量）。
-#' @param ci_categ `logical`，分类比例是否显示 95% CI（若与 `se_categ` 同为 `TRUE`，CI 优先）。
-#' @param ci_categ_method `character`，使用[`svyciprop()`][survey::svyciprop]计算各分组95%CI，参数method可选择。
-#' - `"logit"`：Logit 变换区间，稳定常用；
-#' - `"beta"`：Beta 分布区间，适合比例接近 0/1 或小样本；
-#' - 其余 `"likelihood"`, `"asin"`, `"xlogit"`, `"mean"` 见[`svyciprop()`][survey::svyciprop]。
+#' @param ci_categ `logical`，分类比例是否显示 95% CI。
+#' @param ci_categ_method `character`，c("logit","beta","likelihood", "asin","xlogit","mean")，具体见[`svyciprop()`][survey::svyciprop]。
 #' @param digits_cont `integer`，连续型数值的小数位数。
 #' @param digits_categ `integer`，比例的小数位数。
 #' @param digits_p `integer`，P 值小数位数。
-#' @param show_n `logical`，是否显示表头未加权样本量 `n (unweighted)`。
-#' @param show_N `logical`，是否显示表头加权样本量 `N (weighted)`。
+#' @param show_n `logical`，是否显示表头未加权样本量n。
+#' @param show_N `logical`，是否显示表头加权样本量N。
 #' @param showOverall `logical`，是否增加 `Overall` 列。
 #' @param showAllLevels `logical`，`FALSE` 所有二分类变量，仅展示一个水平信息。
-#' - 默认展示第2类目（一般0/1，N/Y，no/yes）；如需固定展示如Famle/Male，先把因子水平设为 `c("Male","Famle")`。
-#' - 同时在 `Test` 列追加类目信息（形如 `"Yes  |  Rao–Scott chi-square (design-based F)"`）。
+#' - 默认展示第2类目（默认顺序0/1，N/Y，no/yes，Famle/Male）；如需固定展示如Famle，先把因子水平设为 `c("Male","Famle")`。
+#' - 同时在 `Test` 列追加类目信息。
 #'
 #'
 #' @details
 #' **分类变量**
 #'
-#' - 若 `ci_categ = TRUE`，展示Prop (95% CI)，用svyciprop(…, method = "logit")对每个分组子设计计算；
-#' - 若 `categ_style = "percent_SE"`，展示Prop (SE)，用svyby(…, svymean, vartype = "se")估计；
-#' - P 值：用Rao–Scott χ² (design-based F)，通过`svychisq(…, statistic = "F")实现。
+#' - 若 `ci_categ = TRUE`，展示 Prop (95% CI)，用 \code{\link[survey]{svyciprop}(\dots, method = "logit")} 对每个分组子设计计算；
+#' - 若 `categ_style = "percent_SE"`，展示Prop (SE)，用 svyby(…, svymean, vartype = "se")估计；
+#' - P 值：用 Rao–Scott χ² (design-based F)，通过 svychisq(…, statistic = "F")实现。
 #'
 #' **连续（近似正态）**
 #'
