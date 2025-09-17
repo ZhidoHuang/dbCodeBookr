@@ -19,8 +19,8 @@
 #' - `"percent"`：%；
 #' - `"percent_SE"`：%(se)；
 #' - 若 `ci_categ = TRUE` 优先展示 %(95% CI)。
-#' @param ci_cont `logical`，`TRUE`展示Mean (95% CI)（对正态分布连续变量）。
-#' @param ci_nn_cont `logical`，`TRUE`展示Median (95% CI)（对非正态分布连续变量）。
+#' @param ci_cont `logical`，`TRUE` 展示 Mean (95% CI)（对正态分布连续变量）。
+#' @param ci_nn_cont `logical`，`TRUE` 展示 Median (95% CI)（对非正态分布连续变量）。
 #' @param ci_categ `logical`，分类比例是否显示 95% CI。
 #' @param ci_categ_method `character`，c("logit","beta","likelihood", "asin","xlogit","mean")，具体见 [`svyciprop()`][survey::svyciprop]。
 #' @param digits_cont `integer`，小数位数。
@@ -29,29 +29,27 @@
 #' @param show_n `logical`，是否显示表头未加权样本量n。
 #' @param show_N `logical`，是否显示表头加权样本量N。
 #' @param showOverall `logical`，是否增加 `Overall` 列。
-#' @param showAllLevels `logical`，`FALSE` 所有二分类变量，仅展示一个水平信息。
-#' - 默认展示第2水平类目（默认顺序"0/1"，"no/yes"，"Famle/Male"）；如需固定展示如Famle，先把因子水平设为 `c("Male","Famle")`。
-#' - 同时在 `Test` 列追加备注类目信息。
+#' @param showAllLevels `logical`，`FALSE` 仅展示一个水平信息（二分类变量）。
 #'
 #'
 #' @details
 #' **分类变量**
 #'
-#' - 若 `ci_categ = TRUE`，展示 %(95% CI)，用 \code{\link[survey]{svyciprop}(…, method = "logit")} 对每个分组子设计计算；
-#' - 若 `categ_style = "percent_SE"`，展示 %(SE)，用 \code{\link[survey]{svyby}(…, svymean, vartype = "se")} 估计；
-#' - P 值：用 Rao–Scott χ² (design-based F)，通过 \code{\link[survey]{svychisq}(…, statistic = "F")} 实现。
+#' - 若 `ci_categ = TRUE`，展示 %(95% CI)，用 \code{\link[survey]{svyciprop(..., method = "logit")}} 对每个分组子设计计算；
+#' - 若 `categ_style = "percent_SE"`，展示 %(SE)，用 \code{\link[survey]{svyby(..., svymean, vartype = "se")}} 估计；
+#' - P 值：用 Rao–Scott χ² (design-based F)，通过 \code{\link[survey]{svychisq(..., statistic = "F")}} 实现。
 #'
 #' **连续（近似正态）**
 #'
-#' - 默认展示 Mean (SE)，通过 \code{\link[survey]{svyby}(…, svymean, vartype = "se")} 计算；
-#' - 若 `ci_nn_cont = TRUE`，通过 \code{\link[survey]{svyby}(…, svymean, vartype = "ci")} 计算；
-#' - P 值：两组用\code{\link[survey]{svyttest()}}；三组及以上用\code{\link[survey]{svyglm()}} + \code{\link[survey]{regTermTest()}}（Wald F）。
+#' - 默认展示 Mean (SE)，通过 \code{\link[survey]{svyby(..., svymean, vartype = "se")}} 计算；
+#' - 若 `ci_nn_cont = TRUE`，通过 \code{\link[survey]{svyby(..., svymean, vartype = "ci")}}计算；
+#' - P 值：两组用 T检验 \code{\link[survey]{svyttest()}}；三组及以上用 Wald F 检验 \code{\link[survey]{svyglm()}} + \code{\link[survey]{regTermTest()}}。
 #'
 #' **连续（非正态）**
 #'
-#' - 默认展示Median \[IQR\]，通过 \code{\link[survey]{svyby}(…, svyquantile, quantiles = c(.25,.5,.75))} 实现；
-#' - 若 `ci_nn_cont = TRUE`，展示 Median (95% CI)，通过 \code{\link[survey]{svyby}(…, svyquantile, quantiles =0.5, vartype ="ci")} 实现；
-#' - P 值：用"wilcoxon" （两组）或"KruskalWallis" （三组及以上）,通过 \code{\link[survey]{svyranktest}(…, test = "wilcoxon")} 实现。
+#' - 默认展示 Median \[IQR\]，通过 \code{\link[survey]{svyby(..., svyquantile, quantiles = c(.25,.5,.75))}} 实现；
+#' - 若 `ci_nn_cont = TRUE`，展示 Median (95% CI)，通过 \code{\link[survey]{svyby(..., svyquantile, quantiles =0.5, vartype ="ci")}} 实现；
+#' - P 值：用"wilcoxon" （两组）或"KruskalWallis" （三组及以上）,通过 \code{\link[survey]{svyranktest(..., test = "wilcoxon")}} 实现。
 #'
 #'
 #'
