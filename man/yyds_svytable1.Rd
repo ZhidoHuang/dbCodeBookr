@@ -34,9 +34,9 @@ yyds_svytable1(
 
 \item{vars_nn_cont}{\code{character}，变量名向量（非正态连续型）。}
 
-\item{vars_categ}{\code{character}，分类变量名向量（建议确保为因子；其 \code{levels} 决定显示顺序）。}
+\item{vars_categ}{\code{character}，变量名向量（分类）。}
 
-\item{categ_style}{\code{character}，分类比例的单元格样式，取值：
+\item{categ_style}{\code{character}，分类变量信息的展示样式：
 \itemize{
 \item \code{"number_percent"}：n(\%)（n为未加权计数）；
 \item \code{"Number_percent"}：N(\%)（N为加权计数）；
@@ -51,9 +51,9 @@ yyds_svytable1(
 
 \item{ci_categ}{\code{logical}，分类比例是否显示 95\% CI。}
 
-\item{ci_categ_method}{\code{character}，c("logit","beta","likelihood", "asin","xlogit","mean")，具体见\code{\link[survey:svyciprop]{svyciprop()}}。}
+\item{ci_categ_method}{\code{character}，c("logit","beta","likelihood", "asin","xlogit","mean")，具体见 \code{\link[survey:svyciprop]{svyciprop()}}。}
 
-\item{digits_cont}{\code{integer}，连续型数值的小数位数。}
+\item{digits_cont}{\code{integer}，小数位数。}
 
 \item{digits_categ}{\code{integer}，比例的小数位数。}
 
@@ -67,40 +67,40 @@ yyds_svytable1(
 
 \item{showAllLevels}{\code{logical}，\code{FALSE} 所有二分类变量，仅展示一个水平信息。
 \itemize{
-\item 默认展示第2类目（默认顺序0/1，N/Y，no/yes，Famle/Male）；如需固定展示如Famle，先把因子水平设为 \code{c("Male","Famle")}。
-\item 同时在 \code{Test} 列追加类目信息。
+\item 默认展示第2水平类目（默认顺序"0/1"，"no/yes"，"Famle/Male"）；如需固定展示如Famle，先把因子水平设为 \code{c("Male","Famle")}。
+\item 同时在 \code{Test} 列追加备注类目信息。
 }}
 }
 \description{
 在 \strong{survey} 包复杂抽样设计下，创建一个便于在医学研究论文中使用的描述性表格。
 支持三类变量，展示形式可选：
 \itemize{
-\item \strong{分类}：n(\%)，N(\%)，\%，\%(se)，或 \%(95\% CI)；
-\item \strong{正态连续型}：Mean(SE)，或 Mean(95\% CI)；
-\item \strong{非正态连续型}：Median[IQR]，或 Median(95\% CI)。
-\item \strong{差异检验}：见\strong{Details}。
+\item 分类：n(\%)，N(\%)，\%，\%(SE)，或 \%(95\% CI)；
+\item 正态连续型：Mean(SE)，或 Mean(95\% CI)；
+\item 非正态连续型：Median[IQR]，或 Median(95\% CI)。
+\item 差异检验：见\strong{Details}。
 }
 }
 \details{
 \strong{分类变量}
 \itemize{
-\item 若 \code{ci_categ = TRUE}，展示 Prop (95\% CI)，用 \code{\link[survey]{svyciprop}(\dots, method = "logit")} 对每个分组子设计计算；
-\item 若 \code{categ_style = "percent_SE"}，展示Prop (SE)，用 svyby(…, svymean, vartype = "se")估计；
-\item P 值：用 Rao–Scott χ² (design-based F)，通过 svychisq(…, statistic = "F")实现。
+\item 若 \code{ci_categ = TRUE}，展示 \%(95\% CI)，用 \code{\link[survey]{svyciprop}(…, method = "logit")} 对每个分组子设计计算；
+\item 若 \code{categ_style = "percent_SE"}，展示 \%(SE)，用 \code{\link[survey]{svyby}(…, svymean, vartype = "se")} 估计；
+\item P 值：用 Rao–Scott χ² (design-based F)，通过 \code{\link[survey]{svychisq}(…, statistic = "F")} 实现。
 }
 
 \strong{连续（近似正态）}
 \itemize{
-\item 默认展示Mean (SE)，通过svyby(…, svymean, vartype = "se")计算；
-\item 若 \code{ci_nn_cont = TRUE}，通过svyby(…, svymean, vartype = "ci")计算；
-\item P 值：两组用svyttest()；三组及以上用svyglm() + regTermTest()（Wald F）。
+\item 默认展示 Mean (SE)，通过 \code{\link[survey]{svyby}(…, svymean, vartype = "se")} 计算；
+\item 若 \code{ci_nn_cont = TRUE}，通过 \code{\link[survey]{svyby}(…, svymean, vartype = "ci")} 计算；
+\item P 值：两组用\code{\link[survey]{svyttest()}}；三组及以上用\code{\link[survey]{svyglm()}} + \code{\link[survey]{regTermTest()}}（Wald F）。
 }
 
 \strong{连续（非正态）}
 \itemize{
-\item 默认展示Median [Q1, Q3]，通过svyby(…, svyquantile, quantiles = c(.25,.5,.75))实现；
-\item 若 \code{ci_nn_cont = TRUE}，展示Median (95\% CI)，通过svyby(…, svyquantile, quantiles =0.5, vartype ="ci")实现；
-\item P 值：用"wilcoxon" （两组）或"KruskalWallis" （三组及以上）,通过svyranktest(…, test = "wilcoxon")实现。
+\item 默认展示Median [IQR]，通过 \code{\link[survey]{svyby}(…, svyquantile, quantiles = c(.25,.5,.75))} 实现；
+\item 若 \code{ci_nn_cont = TRUE}，展示 Median (95\% CI)，通过 \code{\link[survey]{svyby}(…, svyquantile, quantiles =0.5, vartype ="ci")} 实现；
+\item P 值：用"wilcoxon" （两组）或"KruskalWallis" （三组及以上）,通过 \code{\link[survey]{svyranktest}(…, test = "wilcoxon")} 实现。
 }
 }
 \examples{
