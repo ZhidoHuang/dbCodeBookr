@@ -16,15 +16,15 @@
 #'   | 必含列 | 说明 |
 #'   |---------|---------------------------------------------------------------|
 #'   | `category` | 一级分类（将生成 *details* 折叠块） |
-#'   | `variable` | 变量名（将生成锚点 `#var-<variable>`） |
+#'   | `Variable` | 变量名（将生成锚点 `#var-<Variable>`） |
 #'   | 年份列    | **以&nbsp;4 位数字**或 **`Year` / `Wave`** 开头的列（如`2019`,  `Year2019`, `Wave_1`） (= 年度频数 / 统计量) |
 #'   | 其他列    | 视为 *辅助信息*，会显示在热力图左侧 |
 #'
 #' * **`meta_df`**
 #'   | 必含列 | 说明 |
 #'   |---------|------------------------------------------------------------|
-#'   | `variable` | 必须与 `heat_df$variable` 一一匹配 |
-#'   | `original` | 原始变量名称（可用逗号分隔多个） |
+#'   | `Variable` | 必须与 `heat_df$Variable` 一一匹配 |
+#'   | `original_vars` | 原始变量名称（可用逗号分隔多个） |
 #'   | `easylabel`  | 一句话摘要 |
 #'   | `detail`   | **已编码/转义好的** HTML 字符串，作为展开内容 |
 #'   其余列将被忽略。
@@ -63,7 +63,7 @@
 #' # 构造示例数据 ----
 #' heat_df <- data.frame(
 #'   category = rep(c("Demographics", "Labs"), each = 2),
-#'   variable = c("AGE", "SEX", "HB", "GLU"),
+#'   Variable = c("AGE", "SEX", "HB", "GLU"),
 #'   `2017`   = c(10102, 10109, 9980, 9870),
 #'   `2019`   = c( 9875,  9901, 9720, 9600),
 #'   units    = c("years", "", "g/dL", "mg/dL"),
@@ -71,8 +71,8 @@
 #' )
 #'
 #' meta_df <- data.frame(
-#'   variable = c("AGE", "SEX", "HB", "GLU"),
-#'   original = c("RIDAGEYR", "RIAGENDR", "LBXHGB", "LBXGLU"),
+#'   Variable = c("AGE", "SEX", "HB", "GLU"),
+#'   original_vars = c("RIDAGEYR", "RIAGENDR", "LBXHGB", "LBXGLU"),
 #'   easylabel  = c("Age at exam", "Sex", "Hemoglobin", "Fasting glucose"),
 #'   detail   = c(
 #'     "Continuous variable (0–80).",
@@ -95,7 +95,7 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL) {
   ## ---- identify column groups -------------------------------------------
   year_cols <- grep("^(\\d{4}|Year|Wave)", names(heat_df), value = TRUE)   # 年份列：名称以4位数字起头
   aux_cols  <- setdiff(names(heat_df),
-                       c("category", "variable", year_cols))   # 其余即辅助信息列
+                       c("category", "Variable", year_cols))   # 其余即辅助信息列
 
   ## ---- colour settings（仅用年份列计算渐变） -----------------------------
   all_vals <- suppressWarnings(as.numeric(unlist(heat_df[year_cols])))
@@ -139,7 +139,7 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL) {
       var_rows <- vapply(seq_len(nrow(block)), function(i) {
         r      <- block[i, ]
         parity <- i %% 2L
-        varid  <- esc(r[["variable"]])
+        varid  <- esc(r[["Variable"]])
 
         # 辅助列单元格
         cells_aux <- vapply(aux_cols, function(ac) {
@@ -193,12 +193,12 @@ paste0(css, '<table class="heatmap-table">', head,
 
 ## ---- build variable-map cards（与之前一致） ---------------------------
 make_varmap <- function() {
-  cat_blocks <- split(meta_df, heat_df$category[match(meta_df$variable,
-                                                      meta_df$variable)])
+  cat_blocks <- split(meta_df, heat_df$category[match(meta_df$Variable,
+                                                      meta_df$Variable)])
   details <- vapply(names(cat_blocks), function(cat) {
     cards <- apply(cat_blocks[[cat]], 1, function(r) {
-      var  <- esc(r[["variable"]])
-      ori  <- esc(r[["original"]])
+      var  <- esc(r[["Variable"]])
+      ori  <- esc(r[["original_vars"]])
       summ <- esc(r[["easylabel"]])
       det  <- r[["detail"]]
       sprintf('

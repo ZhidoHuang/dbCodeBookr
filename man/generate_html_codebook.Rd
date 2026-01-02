@@ -39,15 +39,15 @@ HTML 片段}，包括
 \item \strong{\code{heat_df}}\tabular{ll}{
    必含列 \tab 说明 \cr
    \code{category} \tab 一级分类（将生成 \emph{details} 折叠块） \cr
-   \code{variable} \tab 变量名（将生成锚点 \verb{#var-<variable>}） \cr
+   \code{Variable} \tab 变量名（将生成锚点 \verb{#var-<Variable>}） \cr
    年份列 \tab \strong{以 4 位数字}或 \strong{\code{Year} / \code{Wave}} 开头的列（如\code{2019},  \code{Year2019}, \code{Wave_1}） (= 年度频数 / 统计量) \cr
    其他列 \tab 视为 \emph{辅助信息}，会显示在热力图左侧 \cr
 }
 
 \item \strong{\code{meta_df}}\tabular{ll}{
    必含列 \tab 说明 \cr
-   \code{variable} \tab 必须与 \code{heat_df$variable} 一一匹配 \cr
-   \code{original} \tab 原始变量名称（可用逗号分隔多个） \cr
+   \code{Variable} \tab 必须与 \code{heat_df$Variable} 一一匹配 \cr
+   \code{original_vars} \tab 原始变量名称（可用逗号分隔多个） \cr
    \code{easylabel} \tab 一句话摘要 \cr
    \code{detail} \tab \strong{已编码/转义好的} HTML 字符串，作为展开内容 \cr
    其余列将被忽略。 \tab  \cr
@@ -89,7 +89,7 @@ HTML 片段}，包括
 # 构造示例数据 ----
 heat_df <- data.frame(
   category = rep(c("Demographics", "Labs"), each = 2),
-  variable = c("AGE", "SEX", "HB", "GLU"),
+  Variable = c("AGE", "SEX", "HB", "GLU"),
   `2017`   = c(10102, 10109, 9980, 9870),
   `2019`   = c( 9875,  9901, 9720, 9600),
   units    = c("years", "", "g/dL", "mg/dL"),
@@ -97,8 +97,8 @@ heat_df <- data.frame(
 )
 
 meta_df <- data.frame(
-  variable = c("AGE", "SEX", "HB", "GLU"),
-  original = c("RIDAGEYR", "RIAGENDR", "LBXHGB", "LBXGLU"),
+  Variable = c("AGE", "SEX", "HB", "GLU"),
+  original_vars = c("RIDAGEYR", "RIAGENDR", "LBXHGB", "LBXGLU"),
   easylabel  = c("Age at exam", "Sex", "Hemoglobin", "Fasting glucose"),
   detail   = c(
     "Continuous variable (0–80).",
