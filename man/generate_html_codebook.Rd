@@ -48,7 +48,7 @@ HTML 片段}，包括
    必含列 \tab 说明 \cr
    \code{variable} \tab 必须与 \code{heat_df$variable} 一一匹配 \cr
    \code{original} \tab 原始变量名称（可用逗号分隔多个） \cr
-   \code{summary} \tab 一句话摘要 \cr
+   \code{easylabel} \tab 一句话摘要 \cr
    \code{detail} \tab \strong{已编码/转义好的} HTML 字符串，作为展开内容 \cr
    其余列将被忽略。 \tab  \cr
 }
@@ -99,7 +99,7 @@ heat_df <- data.frame(
 meta_df <- data.frame(
   variable = c("AGE", "SEX", "HB", "GLU"),
   original = c("RIDAGEYR", "RIAGENDR", "LBXHGB", "LBXGLU"),
-  summary  = c("Age at exam", "Sex", "Hemoglobin", "Fasting glucose"),
+  easylabel  = c("Age at exam", "Sex", "Hemoglobin", "Fasting glucose"),
   detail   = c(
     "Continuous variable (0–80).",
     "1 = Male, 2 = Female.",

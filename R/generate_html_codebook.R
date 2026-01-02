@@ -25,7 +25,7 @@
 #'   |---------|------------------------------------------------------------|
 #'   | `variable` | 必须与 `heat_df$variable` 一一匹配 |
 #'   | `original` | 原始变量名称（可用逗号分隔多个） |
-#'   | `summary`  | 一句话摘要 |
+#'   | `easylabel`  | 一句话摘要 |
 #'   | `detail`   | **已编码/转义好的** HTML 字符串，作为展开内容 |
 #'   其余列将被忽略。
 #'
@@ -73,7 +73,7 @@
 #' meta_df <- data.frame(
 #'   variable = c("AGE", "SEX", "HB", "GLU"),
 #'   original = c("RIDAGEYR", "RIAGENDR", "LBXHGB", "LBXGLU"),
-#'   summary  = c("Age at exam", "Sex", "Hemoglobin", "Fasting glucose"),
+#'   easylabel  = c("Age at exam", "Sex", "Hemoglobin", "Fasting glucose"),
 #'   detail   = c(
 #'     "Continuous variable (0–80).",
 #'     "1 = Male, 2 = Female.",
@@ -157,7 +157,7 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL) {
 
         paste0(
           '<tr>',
-          '<td style="font-weight:600;background:#fff;text-align:right;">',
+          '<td style="font-weight:600;background:#fff;text-align:center;">',
           sprintf('<a href="#var-%s" style="text-decoration:none;color:black;">%s</a></td>', varid, varid),
           paste(cells_aux,  collapse = ""),
           paste(cells_year, collapse = ""),
@@ -199,7 +199,7 @@ make_varmap <- function() {
     cards <- apply(cat_blocks[[cat]], 1, function(r) {
       var  <- esc(r[["variable"]])
       ori  <- esc(r[["original"]])
-      summ <- esc(r[["summary"]])
+      summ <- esc(r[["easylabel"]])
       det  <- r[["detail"]]
       sprintf('
 <div class="data-card" onclick="toggleLabel(this)">
