@@ -28,6 +28,5 @@ data <- data.frame(
 
 # 生成分布详情
 details <- generate_var_details(data, bar_color = "#4DA6FF")
-print(details[1])
 }
 }
