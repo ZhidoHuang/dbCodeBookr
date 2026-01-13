@@ -2,60 +2,60 @@
 % Please edit documentation in R/generate_html_definition.R
 \name{generate_html_definition}
 \alias{generate_html_definition}
-\title{生成变量定义说明的 HTML 文档（卡片式交互表格）}
+\title{生成变量代码本（Codebook）的 HTML 页面（卡片式说明）}
 \usage{
 generate_html_definition(meta_df, file = NULL)
 }
 \arguments{
-\item{meta_df}{变量元数据数据框（data.frame 或 tibble）。
-必须至少包含以下列：
+\item{meta_df}{变量元数据数据框（data.frame）。
+必须包含以下列：
 \itemize{
-\item \code{Variable}：变量名称（字符型，唯一标识）；
-\item \code{original_vars}：来源或原始变量名称（字符型，可合并展示）；
-\item \code{detail}：变量的详细说明（HTML 或纯文本，允许包含表格与样式）。
+\item \code{Variable}：变量名称（字符型，用于显示在卡片标题中）；
+\item \code{original_vars}：对应的原始变量名或来源说明（字符型）；
+\item \code{detail}：变量的详细定义说明（可为 HTML 或纯文本）。
 }
-其余列将自动作为普通列一并展示在表格中。}
+除上述列外的其他列，将作为普通列按顺序展示在表格中。}
 
 \item{file}{输出 HTML 文件路径。
 若为 \code{NULL}（默认），则不写入文件，仅返回生成的 HTML 字符串。}
 }
 \value{
 返回一个不可见的字符向量（invisible），内容为完整的 HTML 文本。
-若指定了 \code{file}，同时会将 HTML 写入对应文件。
+如果指定了 \code{file}，同时会将 HTML 写入该文件。
 }
 \description{
-根据元数据表（meta_df）生成一个包含变量概览与详细说明的 HTML 页面。
-页面以表格形式展示，每一行对应一个变量，其中“detail”列以可点击卡片方式
-展示变量标签、原始变量映射及扩展说明，支持前端展开/收起。
+根据变量元数据表生成一个用于展示代码本（codebook）的 HTML 页面。
+页面以表格形式呈现，每个变量的详细说明通过可点击的卡片展开/收起，
+适合用于问卷、数据库或衍生变量的定义文档展示。
 }
 \details{
-函数主要执行流程如下：
+函数执行流程如下：
 \enumerate{
-\item 校验 \code{meta_df} 是否包含必要列（\code{Variable}、
-\code{original_vars}、\code{detail}）；
-\item 自动确定需要展示的列（除 \code{original_vars} 外的所有列）；
-\item 构建 HTML 表格：
+\item 检查 \code{meta_df} 是否为数据框，并验证必要列是否存在；
+\item 自动确定需要在表格中展示的列（除 \code{Variable} 与
+\code{original_vars} 外的所有列）；
+\item 构建 HTML 表格结构：
 \itemize{
-\item \code{Variable} 列生成锚点链接，便于页面内跳转；
-\item \code{detail} 列渲染为卡片结构，点击可展开/收起说明；
-\item 其他列以普通单元格形式居中展示；
+\item 普通列使用居中单元格直接展示；
+\item \code{detail} 列渲染为卡片（data-card），
+显示变量名、原始变量映射以及可展开的详细说明；
 }
-\item 内嵌 CSS 样式，用于表格布局、卡片样式及条形图展示；
-\item 内嵌 JavaScript，用于控制变量说明卡片的显示与隐藏；
-\item 组合为完整 HTML 文本并（可选）写入文件。
+\item 内嵌 CSS，用于控制表格样式、卡片布局、字体大小及颜色；
+\item 内嵌 JavaScript，实现点击卡片后说明区域的展开/收起；
+\item 将样式、脚本与表格拼接为完整 HTML 文本并（可选）写入文件。
 }
 
-生成的 HTML 适合直接在浏览器中打开，也可嵌入到
-R Markdown / Quarto / Shiny 输出中使用。
+生成的 HTML 可直接在浏览器中打开，也可嵌入到
+R Markdown、Quarto 或 Shiny 应用中作为静态代码本页面。
 }
 \examples{
 \dontrun{
 meta_df <- data.frame(
   Variable = c("age", "gender"),
   original_vars = c("ba001", "bb002"),
-  label = c("Age of respondent", "Gender"),
+  label = c("Age", "Gender"),
   detail = c(
-    "Age measured in years at interview.",
+    "Age in completed years at interview.",
     "1 = Male; 2 = Female"
   ),
   stringsAsFactors = FALSE
@@ -65,7 +65,6 @@ meta_df <- data.frame(
 html_txt <- generate_html_definition(meta_df)
 
 # 生成并写入文件
-generate_html_definition(meta_df, file = "Definition.html")
+generate_html_definition(meta_df, file = "Codebook.html")
 }
-
 }
