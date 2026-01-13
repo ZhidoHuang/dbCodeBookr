@@ -86,7 +86,7 @@
 #' # 生成并写入
 #' generate_html_codebook(heat_df, meta_df, file = "codebook_demo.html")
 #' }
-generate_html_codebook <- function(heat_df, meta_df, file = NULL) {
+generate_html_codebook <- function(heat_df, meta_df,file = NULL, color1 = "#2C3E50",color2= "#8b0000") {
 
   ## ---- helpers -----------------------------------------------------------
   esc  <- function(x) htmltools::htmlEscape(x, attribute = FALSE)
@@ -102,13 +102,13 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL) {
   rng_vals <- all_vals[!is.na(all_vals) & all_vals != 0]
   rng      <- if (length(rng_vals) > 0) range(rng_vals) else c(0, 1)
 
-  ramp_odd  <- colorRamp(c("#FFFFFF", "#264653"))
-  ramp_even <- colorRamp(c("#FFFFFF", "#8b0000"))
+  ramp_odd  <- colorRamp(c("#FFFFFF", color1))
+  ramp_even <- colorRamp(c("#FFFFFF", color2))
 
   cell_colour <- function(val, row_parity) {
     val_num <- suppressWarnings(as.numeric(val))
     if (is.na(val_num) || val_num == 0) return("#FFFFFF")
-    if (diff(rng) == 0) return("#264653")          # 全部相同值时退化
+    if (diff(rng) == 0) return(color1)          # 全部相同值时退化
     t       <- (val_num - rng[1]) / diff(rng)
     rgb_vec <- if (row_parity) ramp_odd(t) else ramp_even(t)
     sprintf("rgb(%d,%d,%d)", round(rgb_vec[1]), round(rgb_vec[2]), round(rgb_vec[3]))
@@ -132,7 +132,7 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL) {
       colspan <- 1 + length(aux_cols) + length(year_cols)
       cat_id  <- sprintf("cat-%s", slug(cat_name))
       cat_row <- sprintf(
-        '<tr><td colspan="%d" style="background-color:#2C3E50;color:#fff;font-weight:bold;padding:6px;border-radius:6px;font-size:20px;text-align:center;"><a href="#%s" style="color:#fff;text-decoration:none;">%s</a></td></tr>',
+        paste0('<tr><td colspan="%d" style="background-color:',color1,';color:#fff;font-weight:bold;padding:6px;border-radius:0px;font-size:20px;text-align:center;"><a href="#%s" style="color:#fff;text-decoration:none;">%s</a></td></tr>'),
         colspan, cat_id, esc(cat_name)
       )
 
@@ -143,16 +143,17 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL) {
 
         # 辅助列单元格
         cells_aux <- vapply(aux_cols, function(ac) {
-          sprintf('<td style="background:#fff;color:#2C3E50;font-size:12px;text-align:center;">%s</td>',
+          sprintf('<td style="background:#fff;color:#333;font-size:12px;text-align:center;">%s</td>',
                   esc(r[[ac]]))
         }, character(1))
 
         # 年份列单元格
         cells_year <- vapply(year_cols, function(y) {
           v <- r[[y]]
-          sprintf('<td style="background-color:%s;color:#000;text-align:center;">%s</td>',
-                  cell_colour(v, parity),
-                  ifelse(is.na(v) || v == 0, "", format(v, big.mark = ",")))
+          sprintf(
+            '<td class="year-cell" style="background-color:%s;color:#000;text-align:center;">%s</td>',
+            cell_colour(v, parity),
+            ifelse(is.na(v) || v == 0, "", format(v, big.mark = ",")))
         }, character(1))
 
         paste0(
@@ -170,38 +171,36 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL) {
     names(split_list), split_list,
     SIMPLIFY = FALSE, USE.NAMES = FALSE)
 
-    css <- '
+    css <- paste0('
 <style>
-.heatmap-table{
-  border-collapse:collapse;width:100%;font-size:13px;margin-bottom:60px
-}
-.heatmap-table td,.heatmap-table th{
-  border-top:1px solid #ddd;border-bottom:1px solid #ddd;
-  border-left:none;border-right:none;padding:3.5px
-}
-.heatmap-table th{
-  background:darkred;color:#fff;font-size:13px;text-align:center;border-radius:6px
-}
-.heatmap-table td:first-child{
-  font-size:16px;font-weight:600
-}
-</style>'
+/* ---- table ---- */
+.heatmap-table{border-collapse:collapse;width:100%;font-size:15px;}
+/* ---- header ---- */
+.heatmap-table th{border:1px solid ',color2,';background:',color2,';color:#fff; text-align:center;padding:6px;border-radius:0;}
+/* ---- body cells (default) ---- */
+.heatmap-table td{border:1px solid #2C3E5050;padding:8px;vertical-align:middle;border-radius:0;}
+/* first column (Variable) */
+.heatmap-table td:first-child{font-weight:600;}
+.heatmap-table td.year-cell,
+.heatmap-table th.year-cell{border:none !important;}
+</style>')
 
-paste0(css, '<table class="heatmap-table">', head,
-       paste(rows, collapse = ""), '</table>')
+
+    paste0(css, '<table class="heatmap-table">', head,
+           paste(rows, collapse = ""), '</table>')
   }
 
-## ---- build variable-map cards（与之前一致） ---------------------------
-make_varmap <- function() {
-  cat_blocks <- split(meta_df, heat_df$category[match(meta_df$Variable,
-                                                      meta_df$Variable)])
-  details <- vapply(names(cat_blocks), function(cat) {
-    cards <- apply(cat_blocks[[cat]], 1, function(r) {
-      var  <- esc(r[["Variable"]])
-      ori  <- esc(r[["original_vars"]])
-      summ <- esc(r[["easylabel"]])
-      det  <- r[["detail"]]
-      sprintf('
+  ## ---- build variable-map cards（与之前一致） ---------------------------
+  make_varmap <- function() {
+    cat_blocks <- split(meta_df, heat_df$category[match(meta_df$Variable,
+                                                        meta_df$Variable)])
+    details <- vapply(names(cat_blocks), function(cat) {
+      cards <- apply(cat_blocks[[cat]], 1, function(r) {
+        var  <- esc(r[["Variable"]])
+        ori  <- esc(r[["original_vars"]])
+        summ <- esc(r[["easylabel"]])
+        det  <- r[["detail"]]
+        sprintf('
 <div class="data-card" onclick="toggleLabel(this)">
   <div class="var-name-line">
     <span class="var-name" id="var-%s">%s</span>
@@ -210,19 +209,19 @@ make_varmap <- function() {
   </div>
   <div class="var-label"><span class="label-text">%s</span></div>
 </div>', var, var, ori, summ, det)
-    })
-    sprintf('<details id="cat-%s"><summary>%s</summary><div class="category-content">%s</div></details>',
-            slug(cat), esc(cat), paste(cards, collapse = ""))
-  }, character(1))
+      })
+      sprintf('<details id="cat-%s"><summary>%s</summary><div class="category-content">%s</div></details>',
+              slug(cat), esc(cat), paste(cards, collapse = ""))
+    }, character(1))
 
-  js <- '
+    js <- '
 <script>
 function toggleLabel(card){
   const lbl = card.querySelector(".var-label");
   lbl.style.display = lbl.style.display === "block" ? "none" : "block";
 }
 </script>'
-css <- '
+  css <- '
 <style>
 .variable-map details{margin-bottom:18px;padding:0 12px;background:#fff;border-radius:0 6px 6px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .variable-map summary{cursor:pointer;font-size:20px;font-weight:600;color:#2C3E50;background:linear-gradient(90deg,#F2F6F9 0%,#E7EEF4 100%);padding:10px 16px;margin:0 -12px;border-left:4px solid #2C3E50;border-right:4px solid #2C3E50;user-select:none;transition:background .3s ease,color .3s ease}
@@ -238,9 +237,9 @@ css <- '
 .variable-map .var-label{font-size:14px;color:#7f8c8d;padding-top:4px;display:block}
 .variable-map .var-summary{font-size:18px;color:#2C3E50;margin-left:8px;padding:2px 6px;border-radius:4px}
 </style>'
-paste0(css, '<div class="variable-map">', paste(details, collapse = ""),
-       '</div>', js)
-}
+  paste0(css, '<div class="variable-map">', paste(details, collapse = ""),
+         '</div>', js)
+  }
 
 ## ---- assemble ---------------------------------------------------------
 html <- paste(

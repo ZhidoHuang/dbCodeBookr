@@ -5,7 +5,13 @@
 \alias{generate_html_codebook}
 \title{CodeBook HTML 组件}
 \usage{
-generate_html_codebook(heat_df, meta_df, file = NULL)
+generate_html_codebook(
+  heat_df,
+  meta_df,
+  file = NULL,
+  color1 = "#2C3E50",
+  color2 = "#8b0000"
+)
 }
 \arguments{
 \item{heat_df}{\code{data.frame} – 见 \strong{输入数据格式}}
