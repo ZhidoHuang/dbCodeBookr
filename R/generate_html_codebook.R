@@ -102,12 +102,12 @@ generate_html_codebook <- function(heat_df, meta_df,file = NULL, color1 = "#2C3E
   rng_vals <- all_vals[!is.na(all_vals) & all_vals != 0]
   rng      <- if (length(rng_vals) > 0) range(rng_vals) else c(0, 1)
 
-  ramp_odd  <- colorRamp(c("#FFFFFF", color1))
-  ramp_even <- colorRamp(c("#FFFFFF", color2))
+  ramp_odd  <- colorRamp(c("#f4f2f0", color1))
+  ramp_even <- colorRamp(c("#f4f2f0", color2))
 
   cell_colour <- function(val, row_parity) {
     val_num <- suppressWarnings(as.numeric(val))
-    if (is.na(val_num) || val_num == 0) return("#FFFFFF")
+    if (is.na(val_num) || val_num == 0) return("#f4f2f0")
     if (diff(rng) == 0) return(color1)          # 全部相同值时退化
     t       <- (val_num - rng[1]) / diff(rng)
     rgb_vec <- if (row_parity) ramp_odd(t) else ramp_even(t)
@@ -143,7 +143,7 @@ generate_html_codebook <- function(heat_df, meta_df,file = NULL, color1 = "#2C3E
 
         # 辅助列单元格
         cells_aux <- vapply(aux_cols, function(ac) {
-          sprintf('<td style="background:#fff;color:#333;font-size:12px;text-align:center;">%s</td>',
+          sprintf('<td style="background:#f4f2f0;color:#333;font-size:12px;text-align:center;">%s</td>',
                   esc(r[[ac]]))
         }, character(1))
 
@@ -158,7 +158,7 @@ generate_html_codebook <- function(heat_df, meta_df,file = NULL, color1 = "#2C3E
 
         paste0(
           '<tr>',
-          '<td style="font-weight:600;background:#fff;text-align:center;">',
+          '<td style="font-weight:600;text-align:center;">',
           sprintf('<a href="#var-%s" style="text-decoration:none;color:black;">%s</a></td>', varid, varid),
           paste(cells_aux,  collapse = ""),
           paste(cells_year, collapse = ""),
@@ -178,11 +178,11 @@ generate_html_codebook <- function(heat_df, meta_df,file = NULL, color1 = "#2C3E
 /* ---- header ---- */
 .heatmap-table th{border:1px solid ',color2,';background:',color2,';color:#fff; text-align:center;padding:6px;border-radius:0;}
 /* ---- body cells (default) ---- */
-.heatmap-table td{border:1px solid #2C3E5050;padding:8px;vertical-align:middle;border-radius:0;}
+.heatmap-table td{border:1px solid #ddd;padding:8px;vertical-align:middle;border-radius:0;}
 /* first column (Variable) */
 .heatmap-table td:first-child{font-weight:600;}
 .heatmap-table td.year-cell,
-.heatmap-table th.year-cell{border:none !important;}
+.heatmap-table th.year-cell{border-left:none !important;border-right:none !important;border-top:1px solid #ddd !important;border-bottom:1px solid #ddd !important;}
 </style>')
 
 
@@ -228,17 +228,23 @@ function toggleLabel(card){
 .variable-map summary:hover,.variable-map details[open]>summary{background:linear-gradient(90deg,#E7EEF4 0%,#DAE3EC 100%)}
 .variable-map summary::-webkit-details-marker{display:none}
 .variable-map .category-content{padding:8px 0 4px 0}
-.variable-map .data-card{background:#fff;border-left:4px solid darkred;box-shadow:0 1px 3px rgba(0,0,0,.05);padding:12px 18px;margin-bottom:12px;border-radius:0 6px 6px 0;cursor:pointer}
+.variable-map .data-card{background:#f4f2f0;border-left:4px solid darkred;box-shadow:0 1px 3px rgba(0,0,0,.05);padding:12px 18px;margin-bottom:12px;border-radius:0 6px 6px 0;cursor:pointer}
 .variable-map .var-name-line{margin-bottom:6px;display:flex;align-items:center;flex-wrap:wrap;gap:8px}
 .variable-map .var-name{font-weight:bold;color:#000;font-size:18px}
 .variable-map .mapping-container{display:inline-flex;align-items:center;position:relative;margin-left:8px}
-.variable-map .mapping-info{font-size:12px;background:#f0f3f5;color:darkred;padding:2px 6px;border-radius:4px;border:1px solid #e0e0e0;display:inline-block}
-.variable-map .mapping-info:before{content:"变量映射";position:absolute;top:-10px;left:10px;background:#fff;padding:0 5px;font-size:.8em;color:#7f8c8d}
-.variable-map .var-label{font-size:14px;color:#7f8c8d;padding-top:4px;display:block}
+.variable-map .mapping-info{font-size:12px;background:#f8fafb;color:darkred;padding:2px 6px;border-radius:4px;border:1px solid #e0e0e0;display:inline-block}
+.variable-map .mapping-info:before{content:"变量映射";position:absolute;top:-10px;left:10px;background:#f8fafb;padding:0 5px;font-size:.8em;color:#7f8c8d}
+.variable-map .var-label{font-size:14px;color:#7f8c8d;background:#f8fafb;padding-top:4px;display:inline-block}
 .variable-map .var-summary{font-size:18px;color:#2C3E50;margin-left:8px;padding:2px 6px;border-radius:4px}
-</style>'
-  paste0(css, '<div class="variable-map">', paste(details, collapse = ""),
-         '</div>', js)
+.var-label .fixed-table{
+  border-collapse:collapse;
+  width:auto;
+  display:inline-table;
+}
+
+  </style>'
+paste0(css, '<div class="variable-map">', paste(details, collapse = ""),
+       '</div>', js)
   }
 
 ## ---- assemble ---------------------------------------------------------
