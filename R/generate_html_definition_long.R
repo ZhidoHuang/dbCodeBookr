@@ -135,7 +135,7 @@ generate_html_definition_long <- function(heat_df, meta_df, file = NULL,
       colspan <- 1 + length(aux_cols) + length(year_cols)
       cat_id  <- sprintf("cat-%s", slug(cat_name))
       cat_row <- sprintf(
-        paste0('<tr><td colspan="%d" style="background-color:%s;color:#fff;font-weight:bold;padding:6px;border:transparent;border-radius:6px;font-size:20px;text-align:center;"><a href="#%s" style="color:#fff;text-decoration:none;">%s</a></td></tr>'),
+        paste0('<tr><td colspan="%d" style="background-color:%s;color:#fff;font-weight:bold;padding:6px;border:1px solid #ddd !important;border-radius:6px;font-size:20px;text-align:center;"><a href="#%s" style="color:#fff;text-decoration:none;">%s</a></td></tr>'),
         colspan, color1, cat_id, esc(cat_name)
       )
 
@@ -181,7 +181,7 @@ generate_html_definition_long <- function(heat_df, meta_df, file = NULL,
 /* ---- header ---- */
 .heatmap-table th{background:',color2,';border:transparent;color:#fff; text-align:center;padding:6px;border-radius:6px;}
 /* ---- body cells (default) ---- */
-.heatmap-table td{border:1px solid #ddd;padding:8px;vertical-align:middle;border-radius:0;}
+.heatmap-table td{border:1px solid #2C3E5050;padding:8px;vertical-align:middle;border-radius:0;}
 /* first column (Variable) */
 .heatmap-table td:first-child{font-weight:600;}
 .heatmap-table td.year-cell,
