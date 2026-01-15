@@ -2,6 +2,7 @@
 
 export(generate_html_codebook)
 export(generate_html_definition)
+export(generate_html_definition_long)
 export(generate_var_details)
 export(recode.chr)
 export(recode.num)

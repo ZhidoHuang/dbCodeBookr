@@ -1,10 +1,10 @@
 #' @title CodeBook HTML 组件
 #' @encoding UTF-8
 #' @description
-#' **`generate_html_codebook()`** 将两个已格式化的数据框组合为一段**自包含的
+#' **`generate_html_definition_long()`** 将两个已格式化的数据框组合为一段**自包含的
 #' HTML 片段**，包括
-#' 1. **模块概览**：按 *category* 分组的频数热力图
-#' 2. **变量详情**：可折叠的 *variable-map* 卡片（点击展开标签 / 取值说明）
+#' 1. **定义的组分概览**：按 *category* 分组的频数热力图
+#' 2. **定义的组分详情**：可折叠的 *variable-map* 卡片（点击展开标签 / 取值说明）
 #'    - 变量名、原始变量映射、简要描述、详细注释
 #'
 #' 该片段可以直接插入 R Markdown / Shiny / Quarto，或写入文件并在浏览器中
@@ -84,9 +84,9 @@
 #' )
 #'
 #' # 生成并写入
-#' generate_html_codebook(heat_df, meta_df, file = "codebook_demo.html")
+#' generate_html_definition_long(heat_df, meta_df, file = "codebook_demo.html")
 #' }
-generate_html_codebook <- function(heat_df, meta_df,file = NULL, color1 = "#2C3E50",color2= "#8b0000") {
+generate_html_definition_long <- function(heat_df, meta_df,file = NULL, color1 = "#2C3E50",color2= "#8b0000") {
 
   ## ---- helpers -----------------------------------------------------------
   esc  <- function(x) htmltools::htmlEscape(x, attribute = FALSE)
@@ -251,14 +251,47 @@ paste0(css, '<div class="variable-map">', paste(details, collapse = ""),
   }
 
 ## ---- assemble ---------------------------------------------------------
+# 创建一个辅助函数来生成折叠内容
+make_collapsible <- function(title, content, level = 2) {
+  paste0(
+    paste(rep("#", level), collapse = ""), " ", title, "\n\n",
+    '<details data-toggle-details class="custom-details">
+<summary data-toggle-summary>
+  <span class="icon">+</span>
+  <span class="text">
+    <span class="open-text">点击收起详情</span>
+    <span class="close-text">点击查看详情</span>
+  </span>
+</summary>
+',
+    content,
+    '\n</details>'
+  )
+}
+
+# 生成最终的 HTML
 html <- paste(
-  '## 模块概览',
-  make_heatmap(),
-  '## 变量详情',
-  make_varmap(),
+  make_collapsible("定义的组分概览", make_heatmap()),
+  make_collapsible("定义的组分详情", make_varmap()),
   sep = "\n\n"
 )
 
-if (!is.null(file)) writeLines(html, file, useBytes = TRUE)
-invisible(html)
+# 添加 CSS 样式
+css <- '<style>
+.custom-details summary {list-style: none;cursor: pointer;padding: 10px 15px; background: #f8fafb;border-radius: 6px; border: 1px solid #e0e0e0;}
+.custom-details .icon {display: inline-block; width: 20px;  height: 20px; text-align: center; line-height: 18px; background: #4a6ee0; color: white;
+  border-radius: 50%; margin-right: 10px; font-size: 16px; font-weight: bold;  transition: all 0.3s;}
+.custom-details[open] .icon { background: #e04a5e;transform: rotate(45deg); line-height: 20px;}
+.open-text {display: none;color: #e04a5e;}
+.close-text { display: inline;color: #333;}
+.custom-details[open] .open-text {display: inline;}
+.custom-details[open] .close-text { display: none;}
+.custom-details .text { font-weight: 500;}
+</style>'
+
+# 最终结果
+final_html <- paste(html, css, sep = "\n\n")
+
+if (!is.null(file)) writeLines(final_html, file, useBytes = TRUE)
+invisible(final_html)
 }

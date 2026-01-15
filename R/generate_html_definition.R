@@ -88,7 +88,7 @@ generate_html_definition <- function(meta_df, file = NULL) {
     '
 <style>
 .hm-table{border-collapse:collapse;width:100%;font-size:15px;}
-.hm-table th{border:1px solid darkred;background:darkred;color:#fff;text-align:center;padding:6px;font-size:20px;}
+.hm-table th{border:transparent;background:darkred;color:#fff;text-align:center;padding:6px;font-size:20px;border-radius:6px;}
 .hm-table td{border:1px solid #2C3E5050;padding:8px;vertical-align:middle;}
 .hm-table td:first-child{font-weight:600;font-size:18px;}
 .plain-cell{text-align:center;font-size:15px;color:#2C3E50;}
