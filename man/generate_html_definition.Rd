@@ -4,7 +4,7 @@
 \alias{generate_html_definition}
 \title{生成变量代码本（Codebook）的 HTML 页面（卡片式说明）}
 \usage{
-generate_html_definition(meta_df, file = NULL)
+generate_html_definition(meta_df, file = NULL, primary_color = "darkred")
 }
 \arguments{
 \item{meta_df}{变量元数据数据框（data.frame）。
@@ -18,6 +18,10 @@ generate_html_definition(meta_df, file = NULL)
 
 \item{file}{输出 HTML 文件路径。
 若为 \code{NULL}（默认），则不写入文件，仅返回生成的 HTML 字符串。}
+
+\item{primary_color}{主色调，默认为 "darkred"（深红色）。
+可以使用任何有效的 CSS 颜色值，如十六进制颜色码（"#2E86AB"）、
+RGB 值（"rgb(46, 134, 171)"）或颜色名称（"steelblue"）。}
 }
 \value{
 返回一个不可见的字符向量（invisible），内容为完整的 HTML 文本。

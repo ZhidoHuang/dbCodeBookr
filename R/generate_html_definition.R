@@ -16,12 +16,16 @@
 #' @param file 输出 HTML 文件路径。
 #' 若为 \code{NULL}（默认），则不写入文件，仅返回生成的 HTML 字符串。
 #'
+#' @param primary_color 主色调，默认为 "darkred"（深红色）。
+#' 可以使用任何有效的 CSS 颜色值，如十六进制颜色码（"#2E86AB"）、
+#' RGB 值（"rgb(46, 134, 171)"）或颜色名称（"steelblue"）。
+#'
 #' @return
 #' 返回一个不可见的字符向量（invisible），内容为完整的 HTML 文本。
 #' 如果指定了 \code{file}，同时会将 HTML 写入该文件。
 #'
 #' @export
-generate_html_definition <- function(meta_df, file = NULL) {
+generate_html_definition <- function(meta_df, file = NULL, primary_color = "darkred") {
 
   stopifnot(is.data.frame(meta_df))
   stopifnot(all(c("Variable", "original_vars", "detail") %in% names(meta_df)))
@@ -84,35 +88,33 @@ generate_html_definition <- function(meta_df, file = NULL) {
     )
   }
 
-  html <- paste0(
-    '
+  # 使用传入的主色调替换CSS中的颜色
+  css_style <- sprintf('
 <style>
-.hm-table{border-collapse:collapse;width:100%;font-size:15px;}
-.hm-table th{border:transparent;background:darkred;color:#fff;text-align:center;padding:6px;font-size:20px;border-radius:6px;}
+.hm-table{border-collapse:collapse;width:100%%;font-size:15px;}
+.hm-table th{border:transparent;background:%s;color:#fff;text-align:center;padding:6px;font-size:20px;border-radius:6px;}
 .hm-table td{border:1px solid #2C3E5050;padding:8px;vertical-align:middle;}
 .hm-table td:first-child{font-weight:600;font-size:18px;}
 .plain-cell{text-align:center;font-size:15px;color:#2C3E50;}
 .card-cell{min-width:220px;max-width:360px;}
 .card-wrapper{min-width:200px;}
-.data-card{background:#F4F2F0;border-left:4px solid darkred;box-shadow:0 1px 3px rgba(0,0,0,.05);padding:12px 18px;border-radius:0 6px 6px 0;cursor:pointer;}
+.data-card{background:#F4F2F0;border-left:4px solid %s;box-shadow:0 1px 3px rgba(0,0,0,.05);padding:12px 18px;border-radius:0 6px 6px 0;cursor:pointer;}
 .var-name-line{display:flex;align-items:center;gap:10px;}
 .var-name{font-size:18px;font-weight:bold;line-height:1.4;flex-shrink:0;}
 .mapping-block{display:flex;align-items:center;gap:6px;min-width:0;}
-.mapping-arrow{font-size:13px;color:darkred;flex-shrink:0;}
-.mapping-info{font-size:10px;line-height:1.4;background:#f8fafb;color:darkred;padding:2px 6px;border-radius:4px;border:1px solid #ddd;white-space:normal;word-break:break-word;}
+.mapping-arrow{font-size:13px;color:%s;flex-shrink:0;}
+.mapping-info{font-size:10px;line-height:1.4;background:#f8fafb;color:%s;padding:2px 6px;border-radius:4px;border:1px solid #ddd;white-space:normal;word-break:break-word;}
 .var-label{margin-top:10px;padding:10px 14px;background:#f8fafb;border-radius:4px;font-size:10px;line-height:1.55;color:#7f8c8d;display:block;}
 .var-label .fixed-table{border-collapse:collapse;}
 .var-label .fixed-table td{font-size:10px;color:#7f8c8d;padding:2px 8px;white-space:nowrap;font-weight:400!important;border:1px solid #ddd!important;}
-.bar-container{width:60px;height:14px;background:#eef2f4;border-radius:3px;overflow:hidden;}
-.bar{height:100%;background:#AE4D4D;border-radius:3px;}
 </style>
 
 <script>
 function toggleLabel(card){const lbl=card.querySelector(".var-label");if(!lbl)return;lbl.style.display=(lbl.style.display==="block")?"none":"block";}
 </script>
-',
-    make_table()
-  )
+', primary_color, primary_color, primary_color, primary_color)
+
+  html <- paste0(css_style, make_table())
 
   if (!is.null(file)) writeLines(html, file, useBytes = TRUE)
 

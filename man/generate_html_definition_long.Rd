@@ -20,6 +20,10 @@ generate_html_definition_long(
 
 \item{file}{\code{character(1)} | \code{NULL}
 - 目标 HTML 路径；\code{NULL} 时仅返回字符串（默认）}
+
+\item{color1}{\code{character(1)} - 主色调1，默认 \code{"#2C3E50"}（深蓝灰）}
+
+\item{color2}{\code{character(1)} - 主色调2，默认 \code{"#8b0000"}（深红）}
 }
 \value{
 字符串形式的 HTML 代码；若 \code{file} 非空，还会写入该文件。
