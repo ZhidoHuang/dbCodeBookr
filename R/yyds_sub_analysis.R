@@ -337,6 +337,15 @@ yyds_sub_analysis <- function(data,
 
   dt_plot[,c(8:10)] <- sapply(dt_plot[,c(8:10)],as.numeric)
 
+  # 分别检查三列，只要任意一列有Inf或NA，就标记该行
+  extreme_idx <- is.infinite(dt_plot[[8]]) | is.na(dt_plot[[8]]) |
+    is.infinite(dt_plot[[9]]) | is.na(dt_plot[[9]]) |
+    is.infinite(dt_plot[[10]]) | is.na(dt_plot[[10]])
+
+  if(any(extreme_idx, na.rm = TRUE)) {
+    # 将异常行的第8、9、10列都设为NA
+    dt_plot[extreme_idx, 8:10] <- NA
+  }
 
   dt_plot$`         Forestplot` <- paste(rep(" ",20),collapse = " ")
   dt_plot$p_interaction <- ifelse(is.na(dt_plot$p_interaction), " ", dt_plot$p_interaction)
