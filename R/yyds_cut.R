@@ -83,16 +83,16 @@ yyds_cut <- function(data, vars, value = NULL, probs = NULL, ncut = NULL,
                                  include.lowest = TRUE, right = right)
       data[[new_varname]] <- as.factor(data[[new_varname]])
 
-      # 控制台输出（不影响返回结果）
+      # 控制台输出（改为 cat）
       if (verbose) {
-        message(paste0("\n[", var, "] → ", new_varname))
-        message("断点: ", paste(round(breaks, 4), collapse = ", "))
-        message("标签: ", paste(labels, collapse = " | "))
+        cat("\n[", var, "] → ", new_varname, "\n", sep = "")
+        cat("断点: ", paste(round(breaks, 4), collapse = ", "), "\n", sep = "")
+        cat("标签: ", paste(labels, collapse = " | "), "\n", sep = "")
         print(table(data[[new_varname]]))
       }
 
     }, error = function(e) {
-      message(paste("Error with variable", var, ":", e$message))
+      cat("Error with variable", var, ":", e$message, "\n")
     })
   }
 

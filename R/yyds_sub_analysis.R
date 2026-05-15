@@ -121,17 +121,17 @@
 #' @export
 #'
 yyds_sub_analysis <- function(data,
-                         time = NULL,
-                         family_type = NULL,
-                         status,
-                         exposure,
-                         adjust_vars,
-                         stratify_vars,
-                         ref = FALSE,
-                         plot_type = 1,
-                         plot_column = NULL,
-                         xlim = NULL,
-                         ticks_at = NULL) {
+                              time = NULL,
+                              family_type = NULL,
+                              status,
+                              exposure,
+                              adjust_vars,
+                              stratify_vars,
+                              ref = FALSE,
+                              plot_type = 1,
+                              plot_column = NULL,
+                              xlim = NULL,
+                              ticks_at = NULL) {
 
   library(dplyr)
   library(survival)
@@ -290,6 +290,54 @@ yyds_sub_analysis <- function(data,
   }
 
 
+
+  result_table$Stratum <- factor(result_table$Stratum, levels = unique(result_table$Stratum))
+  result_table$Subgroup <- paste0("      ",result_table$Subgroup)
+  result_table <- result_table %>%
+    group_by(Stratum, .drop = FALSE) %>%  # .drop = FALSE 保留所有因子水平
+    do({
+      a <- .$Stratum[1]
+      b <- .$p_interaction[1]
+      .$p_interaction[1] <- NA
+
+      # 创建汇总行
+      new_row <- .[1, ]
+      new_row[] <- NA
+      new_row$Stratum <- a
+      new_row$Subgroup <- a
+      new_row$p_interaction <- b
+
+      # 合并
+      rbind(new_row, .)
+    }) %>%
+    ungroup()
+
+
+
+  dt_plot$Stratum <- factor(dt_plot$Stratum, levels = unique(dt_plot$Stratum))
+  dt_plot$Subgroup <- paste0("     ",dt_plot$Subgroup)
+  dt_plot <- dt_plot %>%
+    group_by(Stratum, .drop = FALSE) %>%  # .drop = FALSE 保留所有因子水平
+    do({
+      a <- .$Stratum[1]
+      b <- .$p_interaction[1]
+      .$p_interaction[1] <- NA
+
+      # 创建汇总行
+      new_row <- .[1, ]
+      new_row[] <- ""
+      new_row$Stratum <- a
+      new_row$Subgroup <- a
+      new_row$p_interaction <- b
+
+      # 合并
+      rbind(new_row, .)
+    }) %>%
+    ungroup()
+
+  dt_plot[,c(8:10)] <- sapply(dt_plot[,c(8:10)],as.numeric)
+
+
   dt_plot$`         Forestplot` <- paste(rep(" ",20),collapse = " ")
   dt_plot$p_interaction <- ifelse(is.na(dt_plot$p_interaction), " ", dt_plot$p_interaction)
   dt_plot$sign <- ifelse(is.na(dt_plot$sign), " ", dt_plot$sign)
@@ -335,6 +383,28 @@ yyds_sub_analysis <- function(data,
   }
 
 
+  # 处理 xlim 和 ticks_at
+  if (is.null(xlim) || is.null(ticks_at)) {
+    # 提取所有效应值和置信区间
+    all_estimates <- c(dt_plot[[11]], dt_plot[[12]], dt_plot[[13]])
+    all_estimates <- na.omit(all_estimates)
+
+    # 计算范围并扩展一定比例
+    data_min <- min(all_estimates)
+    data_max <- max(all_estimates)
+    padding <- (data_max - data_min) * 0.2  # 20%的边距
+
+    xlim_auto <- c(data_min - padding, data_max + padding)
+
+    # 自动生成合适的刻度（5-10个刻度）
+    ticks_auto <- pretty(xlim_auto, n = 5)
+  }
+
+  # 使用传入的参数或自动计算的参数
+  final_xlim <- if (!is.null(xlim)) xlim else xlim_auto
+  final_ticks_at <- if (!is.null(ticks_at)) ticks_at else ticks_auto
+
+
   p <- forestploter::forest(dt_plot[,column],
                             est= list(dt_plot[[11]]),
                             lower = list(dt_plot[[12]]),
@@ -343,8 +413,8 @@ yyds_sub_analysis <- function(data,
                             ci_column = ci_column,
                             ref_line = ref_line,
                             arrow_la = c("Low risk","High risk"),
-                            xlim = xlim,
-                            ticks_at = ticks_at,
+                            xlim = final_xlim,
+                            ticks_at = final_ticks_at,
                             theme = theme_forest)
 
   p <- forestploter::add_border(p, part = "header", gp = grid::gpar(lwd = 1, col = "black"))
