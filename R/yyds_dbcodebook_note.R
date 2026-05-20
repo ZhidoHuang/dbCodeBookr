@@ -141,7 +141,7 @@ yyds_dbcodebook_note <- function(work_dir = NULL, db = c("nhanes", "charls", "el
 
   cat("共读取", length(db_list), "个 db\n")
 
-  library(tidyverse)
+  suppressMessages(library(tidyverse))
 
   # 全连接合并所有数据框，使用对应数据库的 ID 键
   db <- reduce(db_list, full_join, by = id_col)
