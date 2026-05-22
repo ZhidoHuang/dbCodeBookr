@@ -30,7 +30,7 @@
 #'
 #' @return 返回一个 list，包含：
 #' \itemize{
-#'   \item \code{data}：写入公历日期后的数据框；
+#'   \item \code{data_gregorian}：写入公历日期后的数据框；
 #'   \item \code{bad_unique}：转换失败的唯一农历日期（字符向量，格式 \code{"YYYY-MM-DD"}）。
 #' }
 #'
@@ -257,9 +257,8 @@ yyds_lunar_to_gregorian <- function(df,
     Rows processed = %d
     Missing(y/m/d any NA) = %d
     Error Lunar dates = %d
-    Unique error dates = %d
     ",
-    total_rows, missing_count, error_count, length(bad_unique)
+    total_rows, missing_count, error_count
   ))
 
   # ===== write back (ONLY idx rows) =====
@@ -272,7 +271,7 @@ yyds_lunar_to_gregorian <- function(df,
   dt[idx, (out_col) := uniq[i_write, on = .(yy, mm, dd), greg]]
 
   list(
-    data = as.data.frame(dt),
+    data_gregorian = as.data.frame(dt),
     bad_unique = bad_unique
   )
 }

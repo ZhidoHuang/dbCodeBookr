@@ -57,7 +57,7 @@ TRUE 使用 \code{parLapplyLB()}，FALSE 使用 \code{parLapply()}。}
 \value{
 返回一个 list，包含：
 \itemize{
-\item \code{data}：写入公历日期后的数据框；
+\item \code{data_gregorian}：写入公历日期后的数据框；
 \item \code{bad_unique}：转换失败的唯一农历日期（字符向量，格式 \code{"YYYY-MM-DD"}）。
 }
 }
