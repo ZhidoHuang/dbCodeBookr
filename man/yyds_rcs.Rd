@@ -11,7 +11,8 @@ yyds_rcs(
   dist_type = c("hist", "density", "none"),
   rug = FALSE,
   color_dist = "#374E55",
-  color_rcs = "#F79118"
+  color_rcs = "#F79118",
+  color_ribbon = NA
 )
 }
 \arguments{

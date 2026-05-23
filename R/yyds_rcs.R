@@ -57,7 +57,7 @@
 #' @export
 yyds_rcs <- function(fit, ref_zero = TRUE, ref = NULL,
                      dist_type = c("hist", "density","none"), rug = FALSE,
-                     color_dist = "#374E55", color_rcs = "#F79118") {
+                     color_dist = "#374E55", color_rcs = "#F79118", color_ribbon = NA) {
 
   # 1. 识别模型类型 ----------------------------------------------------------
   model_type <- class(fit)[1]
@@ -262,31 +262,53 @@ yyds_rcs <- function(fit, ref_zero = TRUE, ref = NULL,
     list()
   }
 
-  ref_vline <- if (ref_zero == TRUE) {
-    if (!is.null(ref)) {
-      list(geom_vline(xintercept = ref, linetype = "solid"))
-    } else {
-      list(geom_vline(xintercept = median(data[[xvar]]), linetype = "solid"))
+  ref_point <- if (ref_zero == TRUE) {
+    point_x <- if (!is.null(ref)) ref else median(data[[xvar]])
+
+    # 从预测数据中找到对应 x 值的 y 值
+    point_data <- p[p[[xvar]] == point_x, ]
+
+    # 如果精确匹配不到，找最接近的
+    if (nrow(point_data) == 0) {
+      idx <- which.min(abs(p[[xvar]] - point_x))
+      point_data <- p[idx, ]
+      point_x <- point_data[[xvar]]  # 使用实际匹配到的 x 值
     }
+
+    point_y <- point_data$yhat  # 曲线上的 y 值
+
+    # 生成标签文字
+    label_text <- if (!is.null(ref)) {
+      paste0("ref = ", sprintf("%.3f", ref))
+    } else {
+      paste0("median = ", sprintf("%.3f", median(data[[xvar]])))
+    }
+
+    list(
+      # 圆点标记（落在曲线上）
+      geom_point(data = data.frame(x = point_x, y = point_y),
+                 aes(x = x, y = y),
+                 shape = 21,        # 带边框的圆
+                 size = 4,
+                 fill = color_rcs,  # 橙色填充
+                 color = color_rcs,   # 白色边框
+                 stroke = 1,
+                 show.legend = FALSE),
+      # 文字标签（放在圆点旁边）
+      geom_text(data = data.frame(x = point_x, y = point_y),
+                aes(x = x, y = y,
+                    label = label_text),
+                vjust = -5,   # 负值：向上；正值：向下
+                hjust = 0.5,    # 0.5 表示水平居中
+                size = 4.5)
+    )
   } else {
     list()
   }
 
-  ref_vline_text <- if (ref_zero == TRUE) {
-    if (!is.null(ref)) {
-      list(  geom_text(aes(x = ref, y = Inf,
-                           label = paste0("ref = ", sprintf("%.3f", ref))),
-                       vjust = 8, hjust = -0.1, size = 4.5))
-    } else {
-      list(geom_text(aes(x = median(data[[xvar]]), y = Inf,
-                         label = paste0("median = ", sprintf("%.3f", median(data[[xvar]])))),
-                     vjust = 8, hjust = -0.1, size = 4.5))
-    }
-  } else {
-    list()
-  }
 
-  hline_layer <- if (!is.null(hline)) {
+
+  hline_layer <- if (ref_zero == TRUE && !is.null(hline)) {
     geom_hline(yintercept = hline, linetype = "dashed")
   } else {
     NULL
@@ -303,22 +325,22 @@ yyds_rcs <- function(fit, ref_zero = TRUE, ref = NULL,
     geom_line(data = p, aes(x = .data[[xvar]], y = lower), color = color_rcs, linewidth = 0.5) +
     geom_line(data = p, aes(x = .data[[xvar]], y = upper), color = color_rcs, linewidth = 0.5) +
     geom_ribbon(data = p, aes(x = .data[[xvar]], ymin = lower, ymax = upper),
-                alpha = 0.2, fill = color_rcs) +
+                fill = color_ribbon) +
     # 添加垂直线
-    ref_vline +
-    ref_vline_text +
+    ref_point +
+
     # 添加参考线
     hline_layer +
     # 添加文本注释
     geom_text(aes(x = -Inf, y = Inf,
                   label = ifelse(p_overall < 0.001,
-                                 paste0("italic('P overall < 0.001')"),
-                                 paste0("italic('P overall = ", sprintf("%.3f", p_overall), "')"))),
+                                 paste0("italic('P for overall < 0.001')"),
+                                 paste0("italic('P for overall = ", sprintf("%.3f", p_overall), "')"))),
               parse = TRUE, hjust = -0.1, vjust = 2, size = 4.5) +
     geom_text(aes(x = -Inf, y = Inf,
                   label = ifelse(p_nonlinear < 0.001,
-                                 paste0("italic('P nonlinear < 0.001')"),
-                                 paste0("italic('P nonlinear = ", sprintf("%.3f", p_nonlinear), "')"))),
+                                 paste0("italic('P for nonlinearity < 0.001')"),
+                                 paste0("italic('P for nonlinearity = ", sprintf("%.3f", p_nonlinear), "')"))),
               parse = TRUE, hjust = -0.1, vjust = 4, size = 4.5) +
 
     # 双Y轴设置
@@ -333,7 +355,15 @@ yyds_rcs <- function(fit, ref_zero = TRUE, ref = NULL,
     ) +
     labs(title = NULL, x = xvar) +
     theme_bw() +
-    theme(panel.grid = element_blank())
+    theme(
+      panel.grid = element_blank(),
+      # 增加坐标轴标题与轴线的距离
+      axis.title.x = element_text(margin = margin(t = 10)),  # x轴标题向上偏移10pt
+      axis.title.y = element_text(margin = margin(r = 10)),  # y轴标题向右偏移10pt
+      # 可选：增加刻度标签与轴线的距离
+      axis.text.x = element_text(margin = margin(t = 5)),
+      axis.text.y = element_text(margin = margin(r = 5))
+    )
   # 显示图形
   print(plot_rcs)
   # 返回结果
