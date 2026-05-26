@@ -199,8 +199,8 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
           breaks <- hist_data$breaks
 
           # 每个柱子宽度（像素）
-          bar_width <- 40
-          bar_margin <- 2
+          bar_width <- 30
+          bar_margin <- 3
 
           # 生成柱子（使用CSS类）
           hist_bars <- sapply(seq_along(counts), function(j) {
