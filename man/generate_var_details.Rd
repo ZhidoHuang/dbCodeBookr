@@ -4,12 +4,21 @@
 \alias{generate_var_details}
 \title{生成变量分布详情HTML}
 \usage{
-generate_var_details(data, bar_color = "#AE4D4D")
+generate_var_details(
+  data,
+  bar_color = "#AE4D4D",
+  show_hist = FALSE,
+  hist_binwidth = NULL
+)
 }
 \arguments{
 \item{data}{数据框或列表，包含要分析的变量}
 
 \item{bar_color}{条形图的颜色，默认为"#AE4D4D"（深红色）}
+
+\item{show_hist}{逻辑值，是否显示连续变量的直方图，默认为FALSE}
+
+\item{hist_binwidth}{直方图组距，默认为NULL（自动）}
 }
 \value{
 字符向量，每个元素对应一个变量的HTML描述

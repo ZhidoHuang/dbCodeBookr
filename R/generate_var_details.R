@@ -2,6 +2,8 @@
 #' @description 为数据集中的每个变量生成分布详情HTML，包括分类变量的频数百分比分布表和数值变量的统计摘要
 #' @param data 数据框或列表，包含要分析的变量
 #' @param bar_color 条形图的颜色，默认为"#AE4D4D"（深红色）
+#' @param show_hist 逻辑值，是否显示连续变量的直方图，默认为FALSE
+#' @param hist_binwidth 直方图组距，默认为NULL（自动）
 #' @return 字符向量，每个元素对应一个变量的HTML描述
 #' @examples
 #' \dontrun{
@@ -16,8 +18,9 @@
 #' details <- generate_var_details(data, bar_color = "#4DA6FF")
 #' }
 #' @export
-generate_var_details <- function(data, bar_color = "#AE4D4D") {
+generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE, hist_binwidth = NULL) {
   stopifnot(is.list(data) || is.data.frame(data))
+  stopifnot(is.logical(show_hist))
 
   sapply(seq_along(data), function(i) {
     var <- data[[i]]
@@ -130,12 +133,62 @@ generate_var_details <- function(data, bar_color = "#AE4D4D") {
           paste(names(sorted_counts), "(", as.numeric(sorted_counts), ")", collapse = ", ")
         ))
       } else {
-        return(paste0(
-          "范围:  <br>",
-          round(mean(var, na.rm = TRUE), 2),
-          " (", round(min(var, na.rm = TRUE), 2),
-          " ~ ", round(max(var, na.rm = TRUE), 2), ")"
-        ))
+        n <- length(na.omit(var))
+        mean_val <- round(mean(var, na.rm = TRUE), 2)
+        min_val <- round(min(var, na.rm = TRUE), 2)
+        max_val <- round(max(var, na.rm = TRUE), 2)
+
+        stats_text <- sprintf("范围: %s (%s ~ %s) ; &emsp;&emsp; 样本量: %d", mean_val, min_val, max_val, n)
+
+        if (show_hist) {
+          # 生成断点
+          if (!is.null(hist_binwidth) && is.numeric(hist_binwidth) && hist_binwidth > 0) {
+            n_breaks <- max(5, min(50, ceiling((max_val - min_val) / hist_binwidth)))
+            breaks <- pretty(range(var, na.rm = TRUE), n = n_breaks)
+          } else {
+            breaks <- pretty(range(var, na.rm = TRUE), n = 20)
+          }
+
+          hist_data <- hist(var, plot = FALSE, breaks = breaks)
+          counts <- hist_data$counts
+          max_count <- max(counts)
+          breaks <- hist_data$breaks
+
+          # 每个柱子宽度（像素）
+          bar_width <- 40
+          bar_margin <- 2
+
+          # 生成柱子
+          hist_bars <- sapply(seq_along(counts), function(j) {
+            height_pct <- if (max_count > 0) counts[j] / max_count * 100 else 0
+            if (height_pct == 0 && counts[j] > 0) height_pct <- 5
+            sprintf("<div style='height: %.1f%%; width: %dpx; background-color: %s; display: inline-block; margin-right: %dpx; flex-shrink: 0;' title='[%.1f, %.1f): %d个'> </div>",
+                    height_pct, bar_width, bar_color, bar_margin, breaks[j], breaks[j+1], counts[j])
+          })
+
+          # 生成横坐标标签
+          x_labels <- sapply(seq_along(counts), function(j) {
+            sprintf("<div style='width: %dpx; margin-right: %dpx; text-align: center; font-size: 11px; flex-shrink: 0;'>%.1f</div>",
+                    bar_width, bar_margin, (breaks[j] + breaks[j+1]) / 2)
+          })
+
+          hist_html <- paste0(
+            "<div style='margin-top: 15px; max-width: 100%; overflow-x: auto;'>",
+            "<div style='display: flex; flex-direction: column; align-items: center; min-width: fit-content;'>",
+            "<div style='height: 120px; display: flex; align-items: flex-end; border-left: 1px solid #ccc; border-bottom: 1px solid #ccc;'>",
+            paste(hist_bars, collapse = ""),
+            "</div>",
+            "<div style='display: flex; margin-top: 8px;'>",
+            paste(x_labels, collapse = ""),
+            "</div>",
+            "</div>",
+            "</div>"
+          )
+
+          return(paste(stats_text, hist_html, sep = "<br>"))
+        } else {
+          return(stats_text)
+        }
       }
 
     } else {
