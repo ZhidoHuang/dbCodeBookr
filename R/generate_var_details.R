@@ -22,6 +22,50 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
   stopifnot(is.list(data) || is.data.frame(data))
   stopifnot(is.logical(show_hist))
 
+  # 直方图样式
+  hist_style <- sprintf("
+  <style>
+    .hist-bar {
+      display: inline-block;
+      flex-shrink: 0;
+      background-color: %s;
+    }
+    .hist-bar:hover {
+      opacity: 0.8;
+      cursor: pointer;
+    }
+    .hist-label {
+      width: 40px;
+      margin-right: 2px;
+      text-align: center;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    .hist-container {
+      margin-top: 15px;
+      max-width: 100%%
+      overflow-x: auto;
+    }
+    .hist-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: fit-content;
+    }
+    .hist-bars-wrapper {
+      height: 120px;
+      display: flex;
+      align-items: flex-end;
+      border-left: 1px solid #ccc;
+      border-bottom: 1px solid #ccc;
+    }
+    .hist-labels-wrapper {
+      display: flex;
+      margin-top: 8px;
+    }
+  </style>
+  ", bar_color)
+
   sapply(seq_along(data), function(i) {
     var <- data[[i]]
 
@@ -112,7 +156,7 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
           table_style,
           "<table class='fixed-table'>",
           make_rows(sorted_counts, sorted_percentages),
-          "</table>"
+          "<tr>"
         )
         return(paste("类别分布:<br>", table_content))
       }
@@ -158,27 +202,32 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
           bar_width <- 40
           bar_margin <- 2
 
-          # 生成柱子
+          # 生成柱子（使用CSS类）
           hist_bars <- sapply(seq_along(counts), function(j) {
             height_pct <- if (max_count > 0) counts[j] / max_count * 100 else 0
             if (height_pct == 0 && counts[j] > 0) height_pct <- 5
-            sprintf("<div style='height: %.1f%%; width: %dpx; background-color: %s; display: inline-block; margin-right: %dpx; flex-shrink: 0;' title='[%.1f, %.1f): %d个'> </div>",
-                    height_pct, bar_width, bar_color, bar_margin, breaks[j], breaks[j+1], counts[j])
+            sprintf(
+              "<div class='hist-bar' style='height: %.1f%%; width: %dpx; margin-right: %dpx;' title='[%.1f, %.1f): %d个'></div>",
+              height_pct, bar_width, bar_margin, breaks[j], breaks[j+1], counts[j]
+            )
           })
 
-          # 生成横坐标标签
+          # 生成横坐标标签（使用CSS类）
           x_labels <- sapply(seq_along(counts), function(j) {
-            sprintf("<div style='width: %dpx; margin-right: %dpx; text-align: center; font-size: 11px; flex-shrink: 0;'>%.1f</div>",
-                    bar_width, bar_margin, (breaks[j] + breaks[j+1]) / 2)
+            sprintf(
+              "<div class='hist-label' style='width: %dpx; margin-right: %dpx;'>%.1f</div>",
+              bar_width, bar_margin, (breaks[j] + breaks[j+1]) / 2
+            )
           })
 
           hist_html <- paste0(
-            "<div style='margin-top: 15px; max-width: 100%; overflow-x: auto;'>",
-            "<div style='display: flex; flex-direction: column; align-items: center; min-width: fit-content;'>",
-            "<div style='height: 120px; display: flex; align-items: flex-end; border-left: 1px solid #ccc; border-bottom: 1px solid #ccc;'>",
+            hist_style,
+            "<div class='hist-container'>",
+            "<div class='hist-inner'>",
+            "<div class='hist-bars-wrapper'>",
             paste(hist_bars, collapse = ""),
             "</div>",
-            "<div style='display: flex; margin-top: 8px;'>",
+            "<div class='hist-labels-wrapper'>",
             paste(x_labels, collapse = ""),
             "</div>",
             "</div>",
