@@ -156,7 +156,7 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
           table_style,
           "<table class='fixed-table'>",
           make_rows(sorted_counts, sorted_percentages),
-          "<tr>"
+          "</table>"       # ← 去掉 <tr>，加上 </table>
         )
         return(paste("类别分布:<br>", table_content))
       }
