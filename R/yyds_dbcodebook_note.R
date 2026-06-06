@@ -217,11 +217,11 @@ yyds_dbcodebook_note <- function(work_dir = NULL, db = c("nhanes", "charls", "el
 
   cat("还没结束, 正在写出, db和codebook\n")
 
-  write.csv(db, "db.csv", row.names = FALSE, na = "")
-  write.csv(codebook, "codebook.csv", row.names = FALSE, na = "")
+  write.xlsx(db, "db.xlsx")
+  write.xlsx(codebook, "codebook.xlsx")
   saveRDS(db,"db.rds")
 
-  cat("\n已完成, db（csv和rds两个格式, rds读取更快）,\n返回[", getwd(), "] 进行查看\n")
+  cat("\n已完成, db（xlsx和rds两个格式, rds读取更快）,\n返回[", getwd(), "] 进行查看\n")
 
   invisible(list(db = db, codebook = codebook))
 }
