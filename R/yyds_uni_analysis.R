@@ -1,140 +1,60 @@
-#' Batch perform univariate analysis
-#' 批量单因素分析
+#' 批量单因素分析（含自动逐步回归）
 #'
-#'   - This function performs univariate analysis (Cox, logistic, Poisson, or linear regression)
-#' for multiple variables and returns formatted results. It automatically handles
-#' both continuous and categorical variables, providing reference groups for factors.
-#'   - 本函数执行单因素分析（Cox、逻辑、泊松或线性回归）对多个变量进行分析并返回格式化结果。
-#' 自动处理连续变量和分类变量，为因子变量提供参考组
+#' 对多个自变量批量执行单因素回归分析，并可自动进行：
+#'   1. 提取P<0.05的显著变量
+#'   2. 逐步回归（后退法）筛选多因素模型
+#'   3. PH假设检验（仅Cox模型）
+#'   4. 共线性诊断（VIF检验）
 #'
-#' @param data A data frame containing the variables to be analyzed.
-#' @param vars A character vector of variable names to analyze.
-#' @param outcome The outcome variable name (character string).
-#' @param time_var For Cox models, the time variable name (character string).
-#'   Default is NULL for non-Cox models.
-#' @param family For GLM models, the family function (e.g., \code{binomial()},\code{poisson()},\code{gaussian()}).
-#'   Required for GLM models, NULL for Cox models.
-#' @param effect_digits Number of decimal places for effect estimates. Default is 2.
-#' @param p_digits Number of decimal places for p-values. Default is 3.
-#' @param full Logical, whether to return full model details (estimate, CI bounds).
-#'   Default is FALSE.
-#' @param event Logical, whether to include event counts for binary outcomes.
-#'   Default is FALSE.
+#' @param data 包含待分析变量的数据框。
+#' @param vars 待分析的自变量名称（字符向量）。
+#' @param outcome 结局变量名称（字符向量）。
+#' @param time_var Cox模型所需的时间变量名称（字符向量）。非Cox模型默认为NULL。
+#' @param family GLM模型的分布族，可以是：
+#'   - 函数对象：binomial, poisson, gaussian（不带括号）
+#'   - 或者函数调用：binomial(), poisson(), gaussian()
+#'   默认NULL（此时为Cox模型）。
+#' @param effect_digits 效应值保留的小数位数，默认2。
+#' @param p_digits P值保留的小数位数，默认3。
+#' @param full 逻辑值，是否返回完整模型细节（估计值、置信区间上下界）。默认FALSE。
+#' @param event 逻辑值，是否在二分类结局中包含事件数/样本数（Events, n/N）。默认FALSE。
+#' @param stepwise_reg 逻辑值或列表，是否执行逐步回归。默认FALSE。
+#'   若为TRUE，使用默认参数（direction="backward"）。
+#'   若为列表，可指定：list(direction="both", trace=0, k=2)
+#' @param p_threshold 单因素筛选的P值阈值，默认0.05。
+#' @param vif_threshold VIF阈值，默认10。大于此值的变量被认为存在严重共线性。
+#' @param ph_test 逻辑值，是否进行PH假设检验（仅Cox模型有效）。默认TRUE。
 #'
-#' @return A tibble with analysis results, formatted for easy interpretation.
-#'   The columns depend on the model type and parameters:
-#'   - For Cox models: HR (95% CI)
-#'   - For logistic regression: OR (95% CI)
-#'   - For Poisson regression: RR (95% CI)
-#'   - For linear regression: β (95% CI)
-#'   Additional columns are included when full=TRUE or event=TRUE.
+#' @return
+#'   - 若stepwise_reg=FALSE：返回单因素分析结果表
+#'   - 若stepwise_reg=TRUE：返回包含详细结果的列表
 #'
 #' @examples
 #' \dontrun{
-#' # 1. Cox比例风险模型
-#' yyds_uni_analysis(
+#' # Logistic回归示例
+#' logistic_result <- yyds_uni_analysis(
 #'   data = data,
-#'   vars = c("A_age", "A_sex", "A_edu2","A_marital"),
-#'   outcome = "Die_mortstat",
-#'   time_var = "Die_permth_int",
-#'   full = TRUE,
-#'   event = TRUE
+#'   vars = c("age", "sex", "bmi"),
+#'   outcome = "disease",
+#'   family = binomial,
+#'   event = TRUE,
+#'   stepwise_reg = TRUE
 #' )
 #'
-#'#    Variable      `Events, n/N` `HR (95% CI)` `p-value` hr    lower upper
-#'#    <chr>         <chr>         <chr>         <chr>     <chr> <chr> <chr>
-#'#  1 "A_age"       -             1.09 (1.09-1… <0.001    1.09  1.09  1.10
-#'#  2 "A_sex"       NA            NA            NA        NA    NA    NA
-#'#  3 "  female"    191/4379      Ref           -         Ref   1     1
-#'#  4 "  male"      312/4229      1.69 (1.41-2… <0.001    1.69  1.41  2.03
-#'#  5 "A_edu2"      NA            NA            NA        NA    NA    NA
-#'#  6 "  Bachelor'… 79/2179       Ref           -         Ref   1     1
-#'#  7 "  High scho… 297/3814      2.24 (1.75-2… <0.001    2.24  1.75  2.88
-#'#  8 "  Some coll… 126/2613      1.39 (1.05-1… 0.023     1.39  1.05  1.84
-#'#  9 "A_marital"   NA            NA            NA        NA    NA    NA
-#'# 10 "  formerly … 216/1850      Ref           -         Ref   1     1
-#'# 11 "  married"   246/5177      0.38 (0.32-0… <0.001    0.38  0.32  0.45
-#'# 12 "  never mar… 41/1580       0.20 (0.14-0… <0.001    0.20  0.14  0.28
-#'
-#' # 2. poisson泊松回归
-#' yyds_uni_analysis(
-#'   data = data,
-#'   vars = c("A_age", "A_sex", "A_edu2","A_marital"),
-#'   outcome = "CKM_stage",
-#'   family = poisson(),
-#'   effect_digits = 3,
-#'   p_digits = 4
-#' )
-#'
-#'#    Variable                        `RR (95% CI)`       `p-value`
-#'#    <chr>                           <chr>               <chr>
-#'#  1 "A_age"                         1.018 (1.017-1.019) <0.001
-#'#  2 "A_sex"                         NA                  NA
-#'#  3 "  female"                      Ref                 -
-#'#  4 "  male"                        1.107 (1.074-1.141) <0.001
-#'#  5 "A_edu2"                        NA                  NA
-#'#  6 "  Bachelor's degree or more"   Ref                 -
-#'#  7 "  High school diploma or less" 1.261 (1.213-1.311) <0.001
-#'#  8 "  Some college"                1.136 (1.088-1.185) <0.001
-#'#  9 "A_marital"                     NA                  NA
-#'# 10 "  formerly married"            Ref                 -
-#'# 11 "  married"                     0.822 (0.794-0.852) <0.001
-#'# 12 "  never married"               0.619 (0.589-0.651) <0.001
-#'
-#' # 3. logistics逻辑回归（明确指定family）
-#' yyds_uni_analysis(
-#'   data = data,
-#'   vars = c("A_age", "A_sex", "A_edu2","A_marital"),
-#'   outcome = "Die_mortstat",
-#'   family = binomial(),
-#'   full = TRUE,
-#'   event = TRUE
-#' )
-#'
-#'#    Variable      `Events, n/N` `OR (95% CI)` `p-value` or    lower upper
-#'#    <chr>         <chr>         <chr>         <chr>     <chr> <chr> <chr>
-#'#  1 "A_age"       -             1.09 (1.09-1… <0.001    1.09  1.09  1.10
-#'#  2 "A_sex"       NA            NA            NA        NA    NA    NA
-#'#  3 "  female"    191/4379      Ref           -         Ref   1     1
-#'#  4 "  male"      312/4229      1.75 (1.45-2… <0.001    1.75  1.45  2.10
-#'#  5 "A_edu2"      NA            NA            NA        NA    NA    NA
-#'#  6 "  Bachelor'… 79/2179       Ref           -         Ref   1     1
-#'#  7 "  High scho… 297/3814      2.24 (1.75-2… <0.001    2.24  1.75  2.91
-#'#  8 "  Some coll… 126/2613      1.35 (1.01-1… 0.042     1.35  1.01  1.80
-#'#  9 "A_marital"   NA            NA            NA        NA    NA    NA
-#'# 10 "  formerly … 216/1850      Ref           -         Ref   1     1
-#'# 11 "  married"   246/5177      0.38 (0.31-0… <0.001    0.38  0.31  0.46
-#'# 12 "  never mar… 41/1580       0.20 (0.14-0… <0.001    0.20  0.14  0.28
-#'
-#' # 4. gaussian线性回归
-#' yyds_uni_analysis(
-#'   data = data,
-#'   vars = c("A_sex", "A_edu2","A_marital"),
-#'   outcome = "A_age",
-#'   family = gaussian(),  # 必须指定
-#'   full = T
-#' )
-#'#    Variable                        `β (95% CI)`           `p-value` β      lower  upper
-#'#    <chr>                           <chr>                  <chr>     <chr>  <chr>  <chr>
-#'#  1 "A_sex"                         NA                     NA        NA     NA     NA
-#'#  2 "  female"                      Ref                    -         Ref    0      0
-#'#  3 "  male"                        0.09 (-0.64-0.83)      0.802     0.09   -0.64  0.83
-#'#  4 "A_edu2"                        NA                     NA        NA     NA     NA
-#'#  5 "  Bachelor's degree or more"   Ref                    -         Ref    0      0
-#'#  6 "  High school diploma or less" 3.57 (2.66-4.48)       <0.001    3.57   2.66   4.48
-#'#  7 "  Some college"                -0.71 (-1.70-0.27)     0.156     -0.71  -1.70  0.27
-#'#  8 "A_marital"                     NA                     NA        NA     NA     NA
-#'#  9 "  formerly married"            Ref                    -         Ref    0      0
-#'# 10 "  married"                     -9.37 (-10.19--8.54)   <0.001    -9.37  -10.19 -8.54
-#'# 11 "  never married"               -24.83 (-25.87--23.79) <0.001    -24.83 -25.87 -23.79
+#' # 导出到Excel
+#' write.xlsx(logistic_result,
+#'            file = "logistic_结果.xlsx",
+#'            sheetName = names(logistic_result))
 #' }
 #'
-#' @importFrom survival Surv coxph
-#' @importFrom stats as.formula glm binomial poisson gaussian
+#' @importFrom survival Surv coxph cox.zph
+#' @importFrom stats as.formula glm binomial poisson gaussian na.omit AIC
+#' @importFrom MASS stepAIC
 #' @importFrom broom tidy
 #' @importFrom purrr map_dfr
 #' @importFrom tibble tibble
-#' @importFrom dplyr case_when filter mutate transmute bind_rows
+#' @importFrom dplyr case_when filter mutate bind_rows
+#' @importFrom car vif
 #' @export
 yyds_uni_analysis <- function(data, vars, outcome,
                               time_var = NULL,
@@ -142,9 +62,43 @@ yyds_uni_analysis <- function(data, vars, outcome,
                               effect_digits = 2,
                               p_digits = 3,
                               full = FALSE,
-                              event = FALSE) {
+                              event = FALSE,
+                              stepwise_reg = FALSE,
+                              p_threshold = 0.05,
+                              vif_threshold = 10,
+                              ph_test = TRUE) {
 
-  # 辅助函数：格式化效应值
+  # ==================== 辅助函数 ====================
+
+  # 标准化family参数
+  standardize_family <- function(family) {
+    if (is.null(family)) return(NULL)
+    if (inherits(family, "family")) return(family)
+    if (is.function(family)) return(family())
+    if (is.character(family)) {
+      family <- tolower(family)
+      family_obj <- switch(family,
+                           "binomial" = binomial(),
+                           "poisson" = poisson(),
+                           "gaussian" = gaussian(),
+                           "quasipoisson" = quasipoisson(),
+                           "quasibinomial" = quasibinomial(),
+                           "gamma" = Gamma(),
+                           "inverse.gaussian" = inverse.gaussian(),
+                           stop(paste("不支持的family类型:", family)))
+      return(family_obj)
+    }
+    stop("family参数必须是binomial、poisson、gaussian等函数，或binomial()等调用形式")
+  }
+
+  # 获取family名称
+  get_family_name <- function(family_obj) {
+    if (is.null(family_obj)) return("cox")
+    if (inherits(family_obj, "family")) return(family_obj$family)
+    return("unknown")
+  }
+
+  # 格式化效应值
   format_effect <- function(x, exponentiate = FALSE, digits) {
     if (is.character(x)) return(x)
     if (length(x) == 0) return(NA_character_)
@@ -156,7 +110,7 @@ yyds_uni_analysis <- function(data, vars, outcome,
     }
   }
 
-  # 辅助函数：格式化p值
+  # 格式化P值
   format_pvalue <- function(p, digits) {
     if (is.character(p)) return(p)
     if (length(p) == 0) return(NA_character_)
@@ -170,38 +124,48 @@ yyds_uni_analysis <- function(data, vars, outcome,
     })
   }
 
-  # 确定模型类型
+  # ==================== 参数标准化 ====================
+  family_obj <- standardize_family(family)
+  family_name <- get_family_name(family_obj)
+
+  # ==================== 模型类型判断 ====================
   model_type <- ifelse(!is.null(time_var), "cox", "glm")
 
-  # 验证family参数
-  if (model_type == "glm" && is.null(family)) {
-    stop("For GLM models, you must specify the family parameter (e.g., family = binomial())")
+  if (model_type == "glm" && is.null(family_obj)) {
+    stop("对于 GLM 模型，必须指定 family 参数（例如 family = binomial）")
   }
 
-  # 批量分析
+  # ==================== 单因素分析 ====================
+  cat(paste("\n正在进行单因素分析，模型:",
+            ifelse(model_type == "cox", "Cox",
+                   paste("GLM -", family_name))))
+
   results <- purrr::map_dfr(vars, function(var) {
     if (!var %in% names(data)) {
-      stop(paste("Variable", var, "not found in data"))
+      stop(paste("变量", var, "未在数据中找到"))
     }
 
+    # 转换字符为因子
     if (is.character(data[[var]])) {
       data[[var]] <- as.factor(data[[var]])
     }
 
+    # 构造公式
     formula <- if (model_type == "cox") {
       as.formula(paste("Surv(", time_var, ",", outcome, ") ~", var))
     } else {
       as.formula(paste(outcome, "~", var))
     }
 
+    # 拟合模型
     fit <- tryCatch({
       if (model_type == "cox") {
         coxph(formula, data = data)
       } else {
-        glm(formula, data = data, family = family)
+        glm(formula, data = data, family = family_obj)
       }
     }, error = function(e) {
-      message(paste("Error fitting model for variable", var, ":", e$message))
+      cat(paste("拟合变量", var, "时出错：", e$message))
       return(NULL)
     })
 
@@ -218,31 +182,30 @@ yyds_uni_analysis <- function(data, vars, outcome,
       ))
     }
 
+    # 判断是否需要指数化
     exponentiate <- model_type == "cox" ||
-      (model_type == "glm" && family$family %in% c("binomial", "poisson", "quasipoisson"))
+      (model_type == "glm" && family_name %in% c("binomial", "poisson", "quasipoisson"))
 
     sum_tab <- broom::tidy(fit, conf.int = TRUE, exponentiate = FALSE)
 
+    # 处理因子变量
     if (is.factor(data[[var]])) {
       ref_level <- levels(data[[var]])[1]
       other_levels <- levels(data[[var]])[-1]
 
-      event_table <- if (model_type == "cox") {
-        with(data, table(get(var), get(outcome)))
-      } else if (model_type == "glm" && family$family %in% c("binomial", "poisson", "quasipoisson")) {
-        with(data, table(get(var), get(outcome)))
-      } else {
-        table(data[[var]])
+      # 计算事件数
+      events_total <- rep(NA, length(levels(data[[var]])))
+      if (event && (model_type == "cox" ||
+                    (model_type == "glm" && family_name %in% c("binomial")))) {
+        if (is.numeric(data[[outcome]]) || is.logical(data[[outcome]])) {
+          event_table <- with(data, table(get(var), get(outcome)))
+          if (ncol(event_table) >= 2) {
+            events_total <- paste(event_table[, 2], "/", rowSums(event_table), sep = "")
+          }
+        }
       }
 
-      events_total <- if (model_type == "cox" ||
-                          (model_type == "glm" &&
-                           family$family %in% c("binomial", "poisson", "quasipoisson"))) {
-        paste(event_table[, 2], "/", rowSums(event_table), sep = "")
-      } else {
-        as.character(as.vector(event_table))
-      }
-
+      # 参考组行
       ref_row <- tibble(
         term = paste0("  ", ref_level),
         estimate = "Ref",
@@ -254,8 +217,10 @@ yyds_uni_analysis <- function(data, vars, outcome,
         VARS = var
       )
 
+      # 非参考组行
       if (length(other_levels) > 0) {
-        non_ref_results <- map_dfr(other_levels, function(lvl) {
+        non_ref_results <- purrr::map_dfr(seq_along(other_levels), function(i) {
+          lvl <- other_levels[i]
           term_name <- paste0(var, lvl)
           matched_row <- sum_tab %>% filter(term == term_name)
 
@@ -267,7 +232,7 @@ yyds_uni_analysis <- function(data, vars, outcome,
               conf.high = NA_character_,
               p.value = NA_character_,
               P = NA_real_,
-              events_n_N = events_total[match(lvl, other_levels) + 1],
+              events_n_N = events_total[i + 1],
               VARS = var
             )
           } else {
@@ -278,24 +243,27 @@ yyds_uni_analysis <- function(data, vars, outcome,
               conf.high = format_effect(matched_row$conf.high, exponentiate, effect_digits),
               p.value = format_pvalue(matched_row$p.value, p_digits),
               P = matched_row$p.value,
-              events_n_N = events_total[match(lvl, other_levels) + 1],
+              events_n_N = events_total[i + 1],
               VARS = var
             )
           }
         })
 
         bind_rows(
-          tibble(term = var, estimate = NA, conf.low = NA, conf.high = NA, p.value = NA, P = NA_real_, events_n_N = NA, VARS = var),
+          tibble(term = var, estimate = NA, conf.low = NA, conf.high = NA,
+                 p.value = NA, P = NA_real_, events_n_N = NA, VARS = var),
           ref_row,
           non_ref_results
         )
       } else {
         bind_rows(
-          tibble(term = var, estimate = NA, conf.low = NA, conf.high = NA, p.value = NA, P = NA_real_, events_n_N = NA, VARS = var),
+          tibble(term = var, estimate = NA, conf.low = NA, conf.high = NA,
+                 p.value = NA, P = NA_real_, events_n_N = NA, VARS = var),
           ref_row
         )
       }
     } else {
+      # 连续变量
       matched_row <- sum_tab %>% filter(term == var)
 
       if (nrow(matched_row) == 0) {
@@ -324,11 +292,12 @@ yyds_uni_analysis <- function(data, vars, outcome,
     }
   })
 
+  # 格式化单因素结果表
   effect_info <- dplyr::case_when(
     model_type == "cox" ~ list(label = "HR (95% CI)", name = "hr"),
-    model_type == "glm" && family$family == "binomial" ~ list(label = "OR (95% CI)", name = "or"),
-    model_type == "glm" && family$family %in% c("poisson", "quasipoisson") ~ list(label = "RR (95% CI)", name = "rr"),
-    model_type == "glm" && family$family == "gaussian" ~ list(label = "β (95% CI)", name = "β"),
+    model_type == "glm" && family_name == "binomial" ~ list(label = "OR (95% CI)", name = "or"),
+    model_type == "glm" && family_name %in% c("poisson", "quasipoisson") ~ list(label = "RR (95% CI)", name = "rr"),
+    model_type == "glm" && family_name == "gaussian" ~ list(label = "β (95% CI)", name = "β"),
     TRUE ~ list(label = "Coef (95% CI)", name = "coef")
   )
 
@@ -338,6 +307,7 @@ yyds_uni_analysis <- function(data, vars, outcome,
                   paste0(estimate, " (", conf.low, "-", conf.high, ")")))
   })
 
+  # 重命名列
   name_mapping <- c(
     "term" = "Variable",
     "events_n_N" = "Events, n/N",
@@ -352,11 +322,14 @@ yyds_uni_analysis <- function(data, vars, outcome,
     if (x %in% names(name_mapping)) name_mapping[x] else x
   })
 
+  # 筛选输出列
   keep_cols <- if (full) {
     if (event) {
-      c("Variable", "Events, n/N", effect_info$label, "p-value", effect_info$name, "lower", "upper", "VARS", "P")
+      c("Variable", "Events, n/N", effect_info$label, "p-value",
+        effect_info$name, "lower", "upper", "VARS", "P")
     } else {
-      c("Variable", effect_info$label, "p-value", effect_info$name, "lower", "upper", "VARS", "P")
+      c("Variable", effect_info$label, "p-value",
+        effect_info$name, "lower", "upper", "VARS", "P")
     }
   } else {
     if (event) {
@@ -366,12 +339,232 @@ yyds_uni_analysis <- function(data, vars, outcome,
     }
   }
 
-  results <- results[, intersect(keep_cols, names(results)), drop = FALSE]
+  uni_results <- results[, intersect(keep_cols, names(results)), drop = FALSE]
 
-  return(results)
+  # 如果不需要逐步回归，直接返回
+  if (isFALSE(stepwise_reg)) {
+    return(uni_results[, 1:3])
+  }
+
+  # 提取显著变量
+  sig_rows <- uni_results$P < p_threshold & !is.na(uni_results$P)
+
+  if (!any(sig_rows)) {
+    warning(paste("\n未发现 P <", p_threshold, "的显著变量，跳过逐步回归"))
+    return(list(单因素 = uni_results, 提示 = "\n无显著变量"))
+  }
+
+  # 提取显著变量的VARS列
+  pre_vars_raw <- uni_results[sig_rows, "VARS"]
+  if (is.list(pre_vars_raw)) {
+    pre_vars_raw <- unlist(pre_vars_raw)
+  }
+  pre_vars_raw <- as.character(pre_vars_raw)
+  pre_vars_raw <- pre_vars_raw[!is.na(pre_vars_raw)]
+  pre_vars <- unique(pre_vars_raw)
+  pre_vars <- pre_vars[pre_vars != ""]
+
+  if (length(pre_vars) == 0) {
+    warning(paste("未发现有效的显著变量，跳过逐步回归"))
+    return(list(单因素 = uni_results, 提示 = "无有效显著变量"))
+  }
+
+  cat(paste("\n\n", length(pre_vars), "个单因素显著变量:\n", paste(pre_vars, collapse = ", ")))
+
+  # ==================== 逐步回归分析 ====================
+  cat("\n\n\n正在进行逐步回归分析...")
+
+
+  # ===== 根据模型类型准备数据 =====
+  if (model_type == "cox") {
+    required_vars <- c(time_var, outcome, pre_vars)
+    missing_vars <- required_vars[!required_vars %in% names(data)]
+    if (length(missing_vars) > 0) {
+      stop(paste("数据中缺少以下变量:", paste(missing_vars, collapse = ", ")))
+    }
+
+    data_complete <- na.omit(data[, required_vars])
+    cat(paste("\n完整数据量:", nrow(data_complete), "/", nrow(data)))
+
+    pre_vars_ad <- paste(pre_vars, collapse = "+")
+    full_formula <- as.formula(paste("Surv(", time_var, ",", outcome, ") ~", pre_vars_ad))
+    null_formula <- as.formula(paste("Surv(", time_var, ",", outcome, ") ~ 1"))
+
+  } else {
+    required_vars <- c(outcome, pre_vars)
+    missing_vars <- required_vars[!required_vars %in% names(data)]
+    if (length(missing_vars) > 0) {
+      stop(paste("数据中缺少以下变量:", paste(missing_vars, collapse = ", ")))
+    }
+
+    data_complete <- na.omit(data[, required_vars])
+    cat(paste("\n完整数据量:", nrow(data_complete), "/", nrow(data)))
+
+    pre_vars_ad <- paste(pre_vars, collapse = "+")
+    full_formula <- as.formula(paste(outcome, "~", pre_vars_ad))
+    null_formula <- as.formula(paste(outcome, "~ 1"))
+  }
+
+  # 拟合完整模型
+  full_model <- tryCatch({
+    if (model_type == "cox") {
+      coxph(full_formula, data = data_complete)
+    } else {
+      glm(full_formula, data = data_complete, family = family_obj)
+    }
+  }, error = function(e) {
+    cat(paste("\n\n拟合完整模型时出错：", e$message))
+    return(NULL)
+  })
+
+  if (is.null(full_model)) {
+    warning("完整模型拟合失败，跳过逐步回归")
+    return(list(单因素 = uni_results, 提示 = "模型拟合失败"))
+  }
+
+  # 设置逐步回归参数
+  stepwise_params <- if (is.list(stepwise_reg)) {
+    stepwise_reg
+  } else {
+    list(direction = "backward", trace = 0, k = 2)
+  }
+
+  # 执行逐步回归
+  stepwise_model <- tryCatch({
+    MASS::stepAIC(full_model,
+                  direction = stepwise_params$direction,
+                  trace = stepwise_params$trace,
+                  k = ifelse(is.null(stepwise_params$k), 2, stepwise_params$k),
+                  scope = list(lower = null_formula, upper = full_formula))
+  }, error = function(e) {
+    cat(paste("\n\n逐步回归失败：", e$message))
+    return(NULL)
+  })
+
+  if (is.null(stepwise_model)) {
+    cat("\n\n逐步回归失败，使用完整模型")
+    final_model <- full_model
+  } else {
+    final_model <- stepwise_model
+    cat(paste("\n逐步回归完成，最终模型AIC:", round(stats::AIC(final_model), 2)))
+  }
+
+  # ==================== 多因素结果整理 ====================
+  multi_results <- tryCatch({
+    yyds_table2(final_model)
+  }, error = function(e) {
+    cat(paste("yyds_table2 执行失败：", e$message))
+    cat("使用 broom::tidy 作为备选方案")
+    exponentiate <- model_type == "cox" ||
+      (model_type == "glm" && family_name %in% c("binomial", "poisson", "quasipoisson"))
+    tidy_result <- broom::tidy(final_model, conf.int = TRUE, exponentiate = exponentiate)
+    if("p.value" %in% names(tidy_result)) {
+      tidy_result$p.value <- format_pvalue(tidy_result$p.value, p_digits)
+    }
+    return(tidy_result)
+  })
+
+  # ==================== 提取最终模型的变量名 ====================
+  if (model_type == "cox") {
+    final_vars <- all.vars(formula(final_model))
+    final_vars <- final_vars[!final_vars %in% c(time_var, outcome)]
+  } else {
+    final_vars <- all.vars(formula(final_model))
+    final_vars <- final_vars[final_vars != outcome]
+  }
+
+  cat(paste("\n\n最终模型包含", length(final_vars), "个变量: \n",
+            ifelse(length(final_vars) > 0, paste(final_vars, collapse = ", "), "无")))
+
+  # ==================== PH假设检验（仅Cox模型） ====================
+  ph_results <- NULL
+  if (model_type == "cox" && ph_test && length(final_vars) > 0) {
+    cat("\n\n\n正在进行PH假设检验...")
+    ph_test_obj <- tryCatch({
+      survival::cox.zph(final_model)
+    }, error = function(e) {
+      cat(paste("\n\nPH检验失败：", e$message))
+      return(NULL)
+    })
+
+    if (!is.null(ph_test_obj)) {
+      ph_table <- ph_test_obj$table
+      ph_results <- data.frame(
+        Variable = rownames(ph_table),
+        Chisq = sprintf("%.3f", ph_table[, 1]),
+        df = ph_table[, 2],
+        `P-value` = format_pvalue(ph_table[, 3], p_digits),
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
+      ph_results$Variable[ph_results$Variable == "GLOBAL"] <- "GLOBAL (全局检验)"
+    }
+  } else if (model_type != "cox" && ph_test) {
+    cat("\n\n\n非Cox模型，跳过PH假设检验")
+  }
+
+  # ==================== VIF检验 ====================
+  vif_results <- NULL
+
+  if (length(final_vars) >= 2) {
+    cat("\n正在进行共线性诊断...")
+
+    vif_vals <- tryCatch({
+      if (model_type == "cox") {
+        if (requireNamespace("car", quietly = TRUE)) {
+          suppressWarnings(car::vif(final_model))
+        } else {
+          warning("请安装 car 包以进行VIF检验")
+          NULL
+        }
+      } else {
+        car::vif(final_model)
+      }
+    }, error = function(e) {
+      cat(paste("VIF计算失败：", e$message))
+      return(NULL)
+    })
+
+    if (!is.null(vif_vals)) {
+      if (is.matrix(vif_vals)) {
+        if ("GVIF" %in% colnames(vif_vals)) {
+          vif_vals <- vif_vals[, "GVIF^(1/(2*Df))"]
+          vif_results <- data.frame(
+            Variable = names(vif_vals),
+            VIF = sprintf("%.2f", vif_vals),
+            stringsAsFactors = FALSE
+          )
+        } else {
+          vif_results <- data.frame(
+            Variable = rownames(vif_vals),
+            VIF = sprintf("%.2f", vif_vals[, 1]),
+            stringsAsFactors = FALSE
+          )
+        }
+      } else {
+        vif_results <- data.frame(
+          Variable = names(vif_vals),
+          VIF = sprintf("%.2f", vif_vals),
+          stringsAsFactors = FALSE
+        )
+      }
+
+      vif_results$Warning <- ifelse(as.numeric(vif_results$VIF) > vif_threshold,
+                                    paste0(">", vif_threshold), "")
+      vif_results <- vif_results[order(-as.numeric(vif_results$VIF)), ]
+      cat(paste("\n\n\n结束"))
+    }
+  } else if (length(final_vars) == 1) {
+    cat("\n变量数量为1，跳过VIF检验\n\n\n结束")
+  }
+
+  # ==================== 返回结果 ====================
+
+  return(list(
+    单因素 = uni_results[, 1:3],
+    多因素逐步后退法 = multi_results,
+    PH检验 = ph_results,
+    VIF检验 = vif_results
+  ))
+
 }
-
-
-
-
-

@@ -2,8 +2,7 @@
 % Please edit documentation in R/yyds_uni_analysis.R
 \name{yyds_uni_analysis}
 \alias{yyds_uni_analysis}
-\title{Batch perform univariate analysis
-批量单因素分析}
+\title{批量单因素分析（含自动逐步回归）}
 \usage{
 yyds_uni_analysis(
   data,
@@ -14,150 +13,78 @@ yyds_uni_analysis(
   effect_digits = 2,
   p_digits = 3,
   full = FALSE,
-  event = FALSE
+  event = FALSE,
+  stepwise_reg = FALSE,
+  p_threshold = 0.05,
+  vif_threshold = 10,
+  ph_test = TRUE
 )
 }
 \arguments{
-\item{data}{A data frame containing the variables to be analyzed.}
+\item{data}{包含待分析变量的数据框。}
 
-\item{vars}{A character vector of variable names to analyze.}
+\item{vars}{待分析的自变量名称（字符向量）。}
 
-\item{outcome}{The outcome variable name (character string).}
+\item{outcome}{结局变量名称（字符向量）。}
 
-\item{time_var}{For Cox models, the time variable name (character string).
-Default is NULL for non-Cox models.}
+\item{time_var}{Cox模型所需的时间变量名称（字符向量）。非Cox模型默认为NULL。}
 
-\item{family}{For GLM models, the family function (e.g., \code{binomial()},\code{poisson()},\code{gaussian()}).
-Required for GLM models, NULL for Cox models.}
+\item{family}{GLM模型的分布族，可以是：
+\itemize{
+\item 函数对象：binomial, poisson, gaussian（不带括号）
+\item 或者函数调用：binomial(), poisson(), gaussian()
+默认NULL（此时为Cox模型）。
+}}
 
-\item{effect_digits}{Number of decimal places for effect estimates. Default is 2.}
+\item{effect_digits}{效应值保留的小数位数，默认2。}
 
-\item{p_digits}{Number of decimal places for p-values. Default is 3.}
+\item{p_digits}{P值保留的小数位数，默认3。}
 
-\item{full}{Logical, whether to return full model details (estimate, CI bounds).
-Default is FALSE.}
+\item{full}{逻辑值，是否返回完整模型细节（估计值、置信区间上下界）。默认FALSE。}
 
-\item{event}{Logical, whether to include event counts for binary outcomes.
-Default is FALSE.}
+\item{event}{逻辑值，是否在二分类结局中包含事件数/样本数（Events, n/N）。默认FALSE。}
+
+\item{stepwise_reg}{逻辑值或列表，是否执行逐步回归。默认FALSE。
+若为TRUE，使用默认参数（direction="backward"）。
+若为列表，可指定：list(direction="both", trace=0, k=2)}
+
+\item{p_threshold}{单因素筛选的P值阈值，默认0.05。}
+
+\item{vif_threshold}{VIF阈值，默认10。大于此值的变量被认为存在严重共线性。}
+
+\item{ph_test}{逻辑值，是否进行PH假设检验（仅Cox模型有效）。默认TRUE。}
 }
 \value{
-A tibble with analysis results, formatted for easy interpretation.
-The columns depend on the model type and parameters:
 \itemize{
-\item For Cox models: HR (95\% CI)
-\item For logistic regression: OR (95\% CI)
-\item For Poisson regression: RR (95\% CI)
-\item For linear regression: β (95\% CI)
-Additional columns are included when full=TRUE or event=TRUE.
+\item 若stepwise_reg=FALSE：返回单因素分析结果表
+\item 若stepwise_reg=TRUE：返回包含详细结果的列表
 }
 }
 \description{
-\itemize{
-\item This function performs univariate analysis (Cox, logistic, Poisson, or linear regression)
-for multiple variables and returns formatted results. It automatically handles
-both continuous and categorical variables, providing reference groups for factors.
-\item 本函数执行单因素分析（Cox、逻辑、泊松或线性回归）对多个变量进行分析并返回格式化结果。
-自动处理连续变量和分类变量，为因子变量提供参考组
+对多个自变量批量执行单因素回归分析，并可自动进行：
+\enumerate{
+\item 提取P<0.05的显著变量
+\item 逐步回归（后退法）筛选多因素模型
+\item PH假设检验（仅Cox模型）
+\item 共线性诊断（VIF检验）
 }
 }
 \examples{
 \dontrun{
-# 1. Cox比例风险模型
-yyds_uni_analysis(
+# Logistic回归示例
+logistic_result <- yyds_uni_analysis(
   data = data,
-  vars = c("A_age", "A_sex", "A_edu2","A_marital"),
-  outcome = "Die_mortstat",
-  time_var = "Die_permth_int",
-  full = TRUE,
-  event = TRUE
+  vars = c("age", "sex", "bmi"),
+  outcome = "disease",
+  family = binomial,
+  event = TRUE,
+  stepwise_reg = TRUE
 )
 
-#    Variable      `Events, n/N` `HR (95\% CI)` `p-value` hr    lower upper
-#    <chr>         <chr>         <chr>         <chr>     <chr> <chr> <chr>
-#  1 "A_age"       -             1.09 (1.09-1… <0.001    1.09  1.09  1.10
-#  2 "A_sex"       NA            NA            NA        NA    NA    NA
-#  3 "  female"    191/4379      Ref           -         Ref   1     1
-#  4 "  male"      312/4229      1.69 (1.41-2… <0.001    1.69  1.41  2.03
-#  5 "A_edu2"      NA            NA            NA        NA    NA    NA
-#  6 "  Bachelor'… 79/2179       Ref           -         Ref   1     1
-#  7 "  High scho… 297/3814      2.24 (1.75-2… <0.001    2.24  1.75  2.88
-#  8 "  Some coll… 126/2613      1.39 (1.05-1… 0.023     1.39  1.05  1.84
-#  9 "A_marital"   NA            NA            NA        NA    NA    NA
-# 10 "  formerly … 216/1850      Ref           -         Ref   1     1
-# 11 "  married"   246/5177      0.38 (0.32-0… <0.001    0.38  0.32  0.45
-# 12 "  never mar… 41/1580       0.20 (0.14-0… <0.001    0.20  0.14  0.28
-
-# 2. poisson泊松回归
-yyds_uni_analysis(
-  data = data,
-  vars = c("A_age", "A_sex", "A_edu2","A_marital"),
-  outcome = "CKM_stage",
-  family = poisson(),
-  effect_digits = 3,
-  p_digits = 4
-)
-
-#    Variable                        `RR (95\% CI)`       `p-value`
-#    <chr>                           <chr>               <chr>
-#  1 "A_age"                         1.018 (1.017-1.019) <0.001
-#  2 "A_sex"                         NA                  NA
-#  3 "  female"                      Ref                 -
-#  4 "  male"                        1.107 (1.074-1.141) <0.001
-#  5 "A_edu2"                        NA                  NA
-#  6 "  Bachelor's degree or more"   Ref                 -
-#  7 "  High school diploma or less" 1.261 (1.213-1.311) <0.001
-#  8 "  Some college"                1.136 (1.088-1.185) <0.001
-#  9 "A_marital"                     NA                  NA
-# 10 "  formerly married"            Ref                 -
-# 11 "  married"                     0.822 (0.794-0.852) <0.001
-# 12 "  never married"               0.619 (0.589-0.651) <0.001
-
-# 3. logistics逻辑回归（明确指定family）
-yyds_uni_analysis(
-  data = data,
-  vars = c("A_age", "A_sex", "A_edu2","A_marital"),
-  outcome = "Die_mortstat",
-  family = binomial(),
-  full = TRUE,
-  event = TRUE
-)
-
-#    Variable      `Events, n/N` `OR (95\% CI)` `p-value` or    lower upper
-#    <chr>         <chr>         <chr>         <chr>     <chr> <chr> <chr>
-#  1 "A_age"       -             1.09 (1.09-1… <0.001    1.09  1.09  1.10
-#  2 "A_sex"       NA            NA            NA        NA    NA    NA
-#  3 "  female"    191/4379      Ref           -         Ref   1     1
-#  4 "  male"      312/4229      1.75 (1.45-2… <0.001    1.75  1.45  2.10
-#  5 "A_edu2"      NA            NA            NA        NA    NA    NA
-#  6 "  Bachelor'… 79/2179       Ref           -         Ref   1     1
-#  7 "  High scho… 297/3814      2.24 (1.75-2… <0.001    2.24  1.75  2.91
-#  8 "  Some coll… 126/2613      1.35 (1.01-1… 0.042     1.35  1.01  1.80
-#  9 "A_marital"   NA            NA            NA        NA    NA    NA
-# 10 "  formerly … 216/1850      Ref           -         Ref   1     1
-# 11 "  married"   246/5177      0.38 (0.31-0… <0.001    0.38  0.31  0.46
-# 12 "  never mar… 41/1580       0.20 (0.14-0… <0.001    0.20  0.14  0.28
-
-# 4. gaussian线性回归
-yyds_uni_analysis(
-  data = data,
-  vars = c("A_sex", "A_edu2","A_marital"),
-  outcome = "A_age",
-  family = gaussian(),  # 必须指定
-  full = T
-)
-#    Variable                        `β (95\% CI)`           `p-value` β      lower  upper
-#    <chr>                           <chr>                  <chr>     <chr>  <chr>  <chr>
-#  1 "A_sex"                         NA                     NA        NA     NA     NA
-#  2 "  female"                      Ref                    -         Ref    0      0
-#  3 "  male"                        0.09 (-0.64-0.83)      0.802     0.09   -0.64  0.83
-#  4 "A_edu2"                        NA                     NA        NA     NA     NA
-#  5 "  Bachelor's degree or more"   Ref                    -         Ref    0      0
-#  6 "  High school diploma or less" 3.57 (2.66-4.48)       <0.001    3.57   2.66   4.48
-#  7 "  Some college"                -0.71 (-1.70-0.27)     0.156     -0.71  -1.70  0.27
-#  8 "A_marital"                     NA                     NA        NA     NA     NA
-#  9 "  formerly married"            Ref                    -         Ref    0      0
-# 10 "  married"                     -9.37 (-10.19--8.54)   <0.001    -9.37  -10.19 -8.54
-# 11 "  never married"               -24.83 (-25.87--23.79) <0.001    -24.83 -25.87 -23.79
+# 导出到Excel
+write.xlsx(logistic_result,
+           file = "logistic_结果.xlsx",
+           sheetName = names(logistic_result))
 }
 
 }
