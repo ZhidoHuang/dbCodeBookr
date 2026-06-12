@@ -414,7 +414,7 @@ yyds_sub_analysis <- function(data,
   final_ticks_at <- if (!is.null(ticks_at)) ticks_at else ticks_auto
 
 
-  p <- forestploter::forest(dt_plot[,column],
+  p <- suppressWarnings(forestploter::forest(dt_plot[,column],
                             est= list(dt_plot[[11]]),
                             lower = list(dt_plot[[12]]),
                             upper = list(dt_plot[[13]]),
@@ -424,7 +424,7 @@ yyds_sub_analysis <- function(data,
                             arrow_la = c("Low risk","High risk"),
                             xlim = final_xlim,
                             ticks_at = final_ticks_at,
-                            theme = theme_forest)
+                            theme = theme_forest))
 
   p <- forestploter::add_border(p, part = "header", gp = grid::gpar(lwd = 1, col = "black"))
 
