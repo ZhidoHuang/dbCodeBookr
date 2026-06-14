@@ -408,6 +408,22 @@ yyds_km <- function(
         ) |>
         dplyr::filter(time >= xlim[1], time <= xlim[2])
 
+      # 核心修改：为每个分组补充 time = 0、estimate = 0
+      if (xlim[1] == 0) {
+        origin_dat <- tibble::tibble(
+          time = 0,
+          estimate = 0,
+          group = as.character(group_levels),
+          model = "Unadjusted KM"
+        )
+
+        curve_dat <- dplyr::bind_rows(
+          origin_dat,
+          curve_dat
+        ) |>
+          dplyr::arrange(group, time)
+      }
+
     }
 
     if (is.null(y_lab)) {
