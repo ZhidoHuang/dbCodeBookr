@@ -4,10 +4,13 @@
 #' 该函数用于计算回归模型中指定变量作为连续变量时的趋势P值，
 #' 支持多种回归模型类型（线性、逻辑、Cox等）。
 #'
-#' @param fit 回归模型对象，支持 \code{coxph}、\code{glm}、\code{lm}、（\code{svyglm} 和 \code{svycoxph}，待测试）。
+#' @param fit 回归模型对象，支持 \code{coxph}、\code{glm}、\code{lm}、
+#'   \code{svyglm} 和 \code{svycoxph}。
 #' @param var 变量名，应为具有等级顺序的变量（如有序因子或整数型）。
+#' @param p_digits P值保留的小数位数，默认4。
+#' @param verbose 逻辑值，是否打印 p for trend，默认 TRUE。
 #'
-#' @return 返回趋势性 P 值（字符型）（保留4位小数，小于0.001时显示为 "<0.001"）。
+#' @return 返回趋势性 P 值（字符型）。
 #' @export
 #'
 #' @examples
@@ -90,16 +93,20 @@
 #' # 使用函数计算
 #' yyds_pfortrend(fit_svycox, "exposure")
 #'
-yyds_pfortrend <- function(fit, var) {
+yyds_pfortrend <- function(fit, var, p_digits = 4, verbose = TRUE) {
   # 支持的模型类型
   supported_models <- c("coxph", "glm", "lm", "svyglm", "svycoxph")
   if (!inherits(fit, supported_models)) {
     stop("模型类型不支持！支持的类型：", paste(supported_models, collapse = ", "))
   }
 
+  is_svy <- inherits(fit, c("svyglm", "svycoxph"))
+
   # 检查变量是否在模型数据中
   model_data <- tryCatch({
-    if (!is.null(fit$model)) {
+    if (is_svy && !is.null(fit$survey.design)) {
+      fit$survey.design$variables
+    } else if (!is.null(fit$model)) {
       fit$model
     } else {
       model.frame(fit)
@@ -120,22 +127,63 @@ yyds_pfortrend <- function(fit, var) {
     return(NA)
   }
 
-  # 将变量转为数值
-  model_data[[var]] <- as.numeric(model_data[[var]])
+  fmt_p <- function(p) {
+    if (length(p) == 0 || is.na(p) || !is.finite(p)) return(NA_character_)
+    if (p < 10^(-p_digits)) {
+      paste0("<", sprintf(paste0("%.", p_digits, "f"), 10^(-p_digits)))
+    } else {
+      sprintf(paste0("%.", p_digits, "f"), p)
+    }
+  }
 
   # 构造新公式
   formula_original <- formula(fit)
-  formula_new <- update(formula_original, as.formula(paste(". ~ . -", var, "+ as.numeric(as.factor(", var, "))")))
+  safe_var <- paste0("`", var, "`")
+  trend_var <- paste0(gsub("[^A-Za-z0-9_]", "_", var), "_trend")
 
-  # 拟合新模型
-  fit_new <- tryCatch(update(fit, formula = formula_new),
-                      error = function(e) stop("模型更新失败，请检查变量：", var))
+  if (is_svy) {
+    if (!requireNamespace("survey", quietly = TRUE)) {
+      stop("svyglm/svycoxph 趋势检验需要安装 survey 包。")
+    }
+    design2 <- fit$survey.design
+    if (is.null(design2)) {
+      stop("无法从 svyglm/svycoxph 对象中提取 survey design。")
+    }
+    design2$variables[[trend_var]] <- as.numeric(as.factor(design2$variables[[var]]))
+    formula_new <- update(formula_original,
+                          as.formula(paste(". ~ . -", safe_var, "+", trend_var)))
+
+    fit_new <- tryCatch({
+      if (inherits(fit, "svycoxph")) {
+        survey::svycoxph(formula_new, design = design2)
+      } else {
+        survey::svyglm(formula_new, design = design2, family = family(fit))
+      }
+    }, error = function(e) {
+      stop("加权趋势模型拟合失败，请检查变量：", var, "；", e$message)
+    })
+  } else {
+    trend_expr <- paste0("as.numeric(as.factor(", safe_var, "))")
+    formula_new <- update(formula_original,
+                          as.formula(paste(". ~ . -", safe_var, "+", trend_expr)))
+
+    fit_new <- tryCatch(update(fit, formula = formula_new),
+                        error = function(e) {
+                          stop("模型更新失败，请检查变量：", var, "；", e$message)
+                        })
+  }
 
   # 提取系数表
-  coef_table <- summary(fit_new)$coefficients
+  fit_summary <- NULL
+  invisible(capture.output(fit_summary <- summary(fit_new)))
+  coef_table <- fit_summary$coefficients
   row_names <- rownames(coef_table)
-  var_numeric <- paste0("as.numeric(as.factor(", var, "))")
-  possible_names <- c(var_numeric, var)
+  possible_names <- c(
+    trend_var,
+    paste0("as.numeric(as.factor(", safe_var, "))"),
+    paste0("as.numeric(as.factor(", var, "))"),
+    var
+  )
   matched_name <- possible_names[possible_names %in% row_names]
 
   if (length(matched_name) == 0) {
@@ -153,8 +201,9 @@ yyds_pfortrend <- function(fit, var) {
 
   # 提取P值
   p_trend <- coef_table[matched_name[1], p_col]
-  pfortrend <- ifelse(is.na(p_trend), NA,
-                      ifelse(p_trend < 0.001, "<0.001", sprintf("%.4f", p_trend)))
-  cat(paste0("p for trend: ", pfortrend, "\n"))
+  pfortrend <- fmt_p(p_trend)
+  if (isTRUE(verbose)) {
+    cat(paste0("p for trend: ", pfortrend, "\n"))
+  }
   invisible(pfortrend)
 }

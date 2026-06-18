@@ -5,10 +5,11 @@
 \title{Kaplan-Meier 曲线与竞争风险累计发生率曲线（CIF）绘图}
 \usage{
 yyds_km(
-  data,
+  data = NULL,
   time_var,
   outcome,
   exposure,
+  design = NULL,
   adjusted = NULL,
   xlim = NULL,
   ylim = NULL,
@@ -29,7 +30,8 @@ yyds_km(
 )
 }
 \arguments{
-\item{data}{数据框，包含随访时间、结局变量、暴露/分组变量以及可能的调整变量。}
+\item{data}{数据框，包含随访时间、结局变量、暴露/分组变量以及可能的调整变量。
+普通 KM/CIF 分析使用；若提供 \code{design}，可省略。}
 
 \item{time_var}{字符，随访时间变量名。}
 
@@ -39,6 +41,10 @@ CIF 曲线要求编码为 0/1/2，其中 0 = 删失，1 = 目标事件，2 = 竞
 当前目标事件固定为 \code{cause = 1}。}
 
 \item{exposure}{字符，分组变量名。可以是因子、字符或数值变量；绘图时会按该变量分组。}
+
+\item{design}{survey 包创建的复杂抽样设计对象。若提供，则使用
+\code{survey::svykm()} 绘制复杂抽样加权 KM 曲线，并使用
+\code{survey::svylogrank()} 计算加权 log-rank P 值。}
 
 \item{adjusted}{NULL 或字符向量。默认为 \code{NULL}，表示未调整。
 若传入协变量名向量，则绘制调整后的模型预测曲线。
@@ -97,10 +103,12 @@ KM 为 \code{"Cumulative event probability"}，CIF 为 \code{"Cumulative inciden
 \item{risk_table_plot}{风险表格的 ggplot 对象；若未绘制风险表格则为 \code{NULL}。}
 \item{risk_table_data}{风险表格数据框；若未绘制风险表格则为 \code{NULL}。}
 \item{data}{用于绘图的曲线数据框，包含时间、估计值、分组和模型类型。}
-\item{model}{拟合模型对象，可能为 \code{survfit}、\code{coxph}、\code{prodlim} 或 \code{FGR}。}
+\item{model}{拟合模型对象，可能为 \code{survfit}、\code{coxph}、\code{prodlim}、\code{FGR} 或 \code{svykm}。}
 \item{plot_data}{实际用于分析的数据，即删除相关变量缺失值后的数据。}
+\item{design}{实际用于加权 KM 的 survey design；普通分析时为 \code{NULL}。}
 \item{curve_type}{字符，\code{"km"} 或 \code{"cif"}。}
 \item{adjusted}{逻辑值，表示是否进行了协变量调整。}
+\item{weighted}{逻辑值，表示是否使用了复杂抽样加权 KM。}
 \item{xlim}{实际使用的 x 轴范围。}
 \item{x_breaks}{实际使用的 x 轴刻度，同时也是风险表格统计时间点。}
 \item{p_value}{未调整组间比较的 P 值；调整后曲线或未显示 P 值时为 \code{NA}。}
@@ -117,6 +125,7 @@ KM 为 \code{"Cumulative event probability"}，CIF 为 \code{"Cumulative inciden
 \itemize{
 \item 未调整时使用 \code{survival::survfit()} 绘制 \code{1 - S(t)}。
 \item 调整后使用 \code{survival::coxph()} 拟合 Cox 模型，并通过边际标准化预测累计事件概率。
+\item 提供 \code{design} 时使用 \code{survey::svykm()} 绘制复杂抽样加权 KM 曲线。
 }
 
 对于 0/1/2 结局：
@@ -137,9 +146,12 @@ risk table 也不是模型预测值，而是原始分组的 number at risk。
 P 值仅用于未调整曲线：
 \itemize{
 \item KM 曲线使用 log-rank 检验，即 \code{survival::survdiff()}。
+\item 加权 KM 曲线使用 survey-weighted log-rank 检验，即 \code{survey::svylogrank()}。
 \item CIF 曲线使用 Gray's test，即 \code{cmprsk::cuminc()} 返回的检验结果。
 }
 调整后曲线不显示 P 值，避免将未调整组间检验误解为调整后模型检验。
+当前 \code{design} 分支支持未调整的 0/1 KM 曲线；复杂抽样加权下的调整后
+边际标准化曲线和 0/1/2 CIF 暂不在本函数中计算。
 }
 \examples{
 \dontrun{

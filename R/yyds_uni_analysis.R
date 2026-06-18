@@ -6,7 +6,10 @@
 #'   3. PH假设检验（仅Cox模型）
 #'   4. 共线性诊断（VIF检验）
 #'
-#' @param data 包含待分析变量的数据框。
+#' @param data 包含待分析变量的数据框。普通回归分析使用。
+#' @param design survey 包创建的复杂抽样设计对象。若提供，则自动使用
+#'   `survey::svycoxph()` 或 `survey::svyglm()` 进行复杂抽样加权分析，
+#'   此时 `data` 可省略。
 #' @param vars 待分析的自变量名称（字符向量）。
 #' @param outcome 结局变量名称（字符向量）。
 #' @param time_var Cox模型所需的时间变量名称（字符向量）。非Cox模型默认为NULL。
@@ -56,9 +59,10 @@
 #' @importFrom dplyr case_when filter mutate bind_rows
 #' @importFrom car vif
 #' @export
-yyds_uni_analysis <- function(data, vars, outcome,
+yyds_uni_analysis <- function(data = NULL, vars, outcome,
                               time_var = NULL,
                               family = NULL,
+                              design = NULL,
                               effect_digits = 2,
                               p_digits = 3,
                               full = FALSE,
@@ -133,6 +137,88 @@ yyds_uni_analysis <- function(data, vars, outcome,
 
   if (model_type == "glm" && is.null(family_obj)) {
     stop("对于 GLM 模型，必须指定 family 参数（例如 family = binomial）")
+  }
+
+  # ==================== 复杂抽样加权单因素分析 ====================
+  if (!is.null(design)) {
+    if (!requireNamespace("survey", quietly = TRUE)) {
+      stop("使用 design 参数需要安装 survey 包。")
+    }
+
+    if (!isFALSE(stepwise_reg)) {
+      warning("复杂抽样加权模式下暂不执行 stepwise_reg；将只返回加权单因素结果。")
+    }
+
+    design_vars <- names(design$variables)
+    required_vars <- unique(c(vars, outcome, time_var))
+    missing_vars <- setdiff(required_vars, design_vars)
+    if (length(missing_vars) > 0) {
+      stop("design$variables 中缺少以下变量: ", paste(missing_vars, collapse = ", "))
+    }
+
+    effect_label <- if (model_type == "cox") {
+      "HR (95% CI)"
+    } else if (family_name %in% c("binomial", "quasibinomial")) {
+      "OR (95% CI)"
+    } else if (family_name %in% c("poisson", "quasipoisson")) {
+      "RR (95% CI)"
+    } else if (family_name == "gaussian") {
+      "β (95% CI)"
+    } else {
+      "Coef (95% CI)"
+    }
+
+    cat(paste("\n正在进行复杂抽样加权单因素分析，模型:",
+              ifelse(model_type == "cox", "svycoxph",
+                     paste("svyglm -", family_name))))
+
+    results_svy <- purrr::map_dfr(vars, function(var) {
+      formula <- if (model_type == "cox") {
+        as.formula(paste("Surv(", time_var, ",", outcome, ") ~", var))
+      } else {
+        as.formula(paste(outcome, "~", var))
+      }
+
+      fit <- tryCatch({
+        if (model_type == "cox") {
+          survey::svycoxph(formula, design = design)
+        } else {
+          survey::svyglm(formula, design = design, family = family_obj)
+        }
+      }, error = function(e) {
+        cat(paste("\n拟合变量", var, "时出错：", e$message))
+        return(NULL)
+      })
+
+      if (is.null(fit)) {
+        out <- data.frame(
+          VARS = var,
+          Variable = var,
+          stringsAsFactors = FALSE,
+          check.names = FALSE
+        )
+        if (event) out[["Events, n/N"]] <- NA_character_
+        out[[effect_label]] <- NA_character_
+        out[["p-value"]] <- NA_character_
+        out[["sign"]] <- NA_character_
+        return(out)
+      }
+
+      tab <- yyds_table2(
+        fit,
+        effect_digits = effect_digits,
+        p_digits = p_digits,
+        full = full,
+        event = event
+      )
+      dplyr::bind_cols(VARS = var, tab)
+    })
+
+    return(results_svy)
+  }
+
+  if (is.null(data)) {
+    stop("普通分析模式下必须提供 data；复杂抽样加权分析请提供 design。")
   }
 
   # ==================== 单因素分析 ====================

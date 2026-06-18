@@ -11,7 +11,11 @@ yyds_table2(model, effect_digits = 2, p_digits = 3, full = TRUE, event = TRUE)
 \item{model}{A fitted regression model object. Supported types:
 \itemize{
 \item Cox proportional hazards model (coxph)
-\item Generalized linear model (glm) with binomial, poisson, or gaussian family.
+\item Survey-weighted Cox proportional hazards model (svycoxph)
+\item Generalized linear model (glm) with binomial/quasibinomial,
+poisson/quasipoisson, or gaussian family.
+\item Survey-weighted generalized linear model (svyglm) with
+binomial/quasibinomial, poisson/quasipoisson, or gaussian family.
 \item Linear model (lm).
 }}
 

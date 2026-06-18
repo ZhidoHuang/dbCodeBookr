@@ -5,7 +5,8 @@
 \title{分层回归分析与森林图绘制}
 \usage{
 yyds_sub_analysis(
-  data,
+  data = NULL,
+  design = NULL,
   time = NULL,
   family_type = NULL,
   status,
@@ -20,11 +21,17 @@ yyds_sub_analysis(
 )
 }
 \arguments{
-\item{data}{数据框（data.frame），包含所有分析所需变量。}
+\item{data}{数据框（data.frame），包含所有分析所需变量。普通回归分析使用。}
+
+\item{design}{survey 包创建的复杂抽样设计对象。若提供，则自动使用
+\code{survey::svycoxph()} 或 \code{survey::svyglm()} 进行复杂抽样加权亚组分析，
+此时 \code{data} 可省略。}
 
 \item{time}{生存分析中的随访时间变量。若进行 Cox 回归必须提供。}
 
-\item{family_type}{回归模型族类。支持 "binomial"（二项）、"poisson"（泊松）、"gaussian"（高斯）。若为生存分析则设为 NULL。}
+\item{family_type}{回归模型族类。支持 "binomial"（二项）、
+"poisson"（泊松）、"gaussian"（高斯）。\code{design} 加权模式下也支持
+"quasibinomial" 和 "quasipoisson"。若为生存分析则设为 NULL。}
 
 \item{status}{状态变量，用于表示事件是否发生（0/1）。}
 
@@ -45,11 +52,8 @@ yyds_sub_analysis(
 \item{ticks_at}{X轴刻度点，用于控制森林图的坐标刻度。}
 }
 \value{
-返回一个包含以下组成部分的列表：
-\itemize{
-\item 格式化后的回归结果汇总表。
-\item 森林图对象（ggplot/forestploter 生成）。
-}
+返回格式化后的回归结果汇总表；森林图对象保存在
+\code{attr(result, "forest_plot")} 中。
 }
 \description{
 \itemize{
@@ -63,6 +67,10 @@ yyds_sub_analysis(
 \item 若指定 \code{family_type}，则按指定族类进行广义线性模型分析。
 \item \code{time}和\code{family_type}不能同时出现。
 \item 交互作用P值计算使用 \code{yyds_pforinteraction()} 函数。
+\item \code{design} 加权分支输出与普通分支一致的 \code{total_event_N} 和
+\verb{Events, n/N} 列；两者均按实际进入 \code{svycoxph()} / \code{svyglm()}
+的 complete-case 模型样本统计。
+\item 普通分支和 \code{design} 加权分支共用同一套森林图生成逻辑。
 }
 }
 \examples{

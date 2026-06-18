@@ -5,11 +5,12 @@
 \title{批量单因素分析（含自动逐步回归）}
 \usage{
 yyds_uni_analysis(
-  data,
+  data = NULL,
   vars,
   outcome,
   time_var = NULL,
   family = NULL,
+  design = NULL,
   effect_digits = 2,
   p_digits = 3,
   full = FALSE,
@@ -21,7 +22,7 @@ yyds_uni_analysis(
 )
 }
 \arguments{
-\item{data}{包含待分析变量的数据框。}
+\item{data}{包含待分析变量的数据框。普通回归分析使用。}
 
 \item{vars}{待分析的自变量名称（字符向量）。}
 
@@ -35,6 +36,10 @@ yyds_uni_analysis(
 \item 或者函数调用：binomial(), poisson(), gaussian()
 默认NULL（此时为Cox模型）。
 }}
+
+\item{design}{survey 包创建的复杂抽样设计对象。若提供，则自动使用
+\code{survey::svycoxph()} 或 \code{survey::svyglm()} 进行复杂抽样加权分析，
+此时 \code{data} 可省略。}
 
 \item{effect_digits}{效应值保留的小数位数，默认2。}
 

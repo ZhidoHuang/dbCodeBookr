@@ -121,6 +121,21 @@ yyds_svytable1 <- function(
     showAllLevels  = FALSE                  # FALSE 且二分类：仅 level2，变量名与数值同一行，Test 拼接水平名
 ){
   # ---- 选项与工具 ----
+  if (!requireNamespace("survey", quietly = TRUE)) {
+    stop("Package 'survey' is required for yyds_svytable1().")
+  }
+  svyby <- survey::svyby
+  svychisq <- survey::svychisq
+  svyciprop <- survey::svyciprop
+  svyglm <- survey::svyglm
+  svymean <- survey::svymean
+  svyquantile <- survey::svyquantile
+  svyranktest <- survey::svyranktest
+  svytable <- survey::svytable
+  svyttest <- survey::svyttest
+  regTermTest <- survey::regTermTest
+  SE <- survey::SE
+
   categ_style <- match.arg(categ_style)
   ci_categ_method <- match.arg(tolower(ci_categ_method),
                                c("logit","likelihood","asin","beta","xlogit","mean"))
@@ -159,13 +174,15 @@ yyds_svytable1 <- function(
   fmt_pct_se <- function(ph, se, d=digits_categ)
     sprintf(paste0("%.",d,"f (%.",d,"f)"), 100*ph, 100*se)
 
-  row_df <- function(varname, cells_named_vec = c(), p = "", test = ""){
+  row_df <- function(varname, cells_named_vec = c(), p = "", test = "", level = ""){
     cells_all <- setNames(rep("", length(lev_cols)), lev_cols)
     if (length(cells_named_vec)) {
       nm <- intersect(names(cells_named_vec), lev_cols)
       cells_all[nm] <- as.character(cells_named_vec[nm])
     }
-    as.data.frame(c(list("Characteristics" = varname), as.list(cells_all), list("P" = p, "Test" = test)),
+    as.data.frame(c(list("Characteristics" = varname, "Level" = level),
+                    as.list(cells_all),
+                    list("P" = p, "Test" = test)),
                   check.names = FALSE, stringsAsFactors = FALSE)
   }
 
@@ -258,7 +275,7 @@ yyds_svytable1 <- function(
                          design = design, statistic = "F"), silent = TRUE)
       if (!inherits(ch, "try-error")) {
         p_val <- fmt_p(safe_num(ch$p.value))
-        method_used <- "Rao–Scott χ² (design-based F)"
+        method_used <- "Rao-Scott χ² F test"
       }
 
       # 决定此变量是否显示CI/SE
@@ -365,8 +382,7 @@ yyds_svytable1 <- function(
           }
         }
 
-        test_str <- if (nzchar(method_used)) paste0(lv, "  |  ", method_used) else lv
-        rows <- c(rows, list(row_df(paste0(v, suffix), cells, p_val, test_str)))
+        rows <- c(rows, list(row_df(paste0(v, suffix), cells, p_val, method_used, level = lv)))
         next
       }
 
@@ -531,21 +547,21 @@ yyds_svytable1 <- function(
 
       # 检验
       des_ok <- subset(design, !is.na(design$variables[[v]]) & !is.na(design$variables[[g]]))
-      k <- nlevels(factor(des_ok$variables[[g]]))
+      des_ok$variables$.g <- factor(des_ok$variables[[g]])
+      k <- nlevels(des_ok$variables$.g)
       method_used <- ""; p_val <- NA_real_
       if (k == 2) {
-        tmp <- update(des_ok, .g = factor(des_ok$variables[[g]]))
-        tt <- try(svyttest(as.formula(paste0(v, " ~ .g")), tmp), silent = TRUE)
+        tt <- try(svyttest(as.formula(paste0(v, " ~ .g")), des_ok), silent = TRUE)
         if (!inherits(tt, "try-error")) {
-          method_used <- "Design-based t-test (svyttest)"
+          method_used <- "Design-based t test"
           p_val <- tryCatch(safe_num(tt$p.value), error=function(e) NA_real_)
         } else k <- 3
       }
       if (k >= 3 && is.na(p_val)) {
-        fit <- try(svyglm(as.formula(paste0(v, " ~ ", g)), design = des_ok, na.action = na.omit), silent = TRUE)
+        fit <- try(svyglm(as.formula(paste0(v, " ~ .g")), design = des_ok, na.action = na.omit), silent = TRUE)
         if (!inherits(fit, "try-error")) {
-          p_val <- tryCatch(regTermTest(fit, as.formula(paste0("~", g)))$p, error=function(e) NA_real_)
-          method_used <- "Wald F (svyglm + regTermTest)"
+          p_val <- tryCatch(regTermTest(fit, ~.g)$p, error=function(e) NA_real_)
+          method_used <- "Design-adjusted Wald F test (group as factor)"
         }
       }
 
@@ -602,21 +618,22 @@ yyds_svytable1 <- function(
 
       # 检验：两组 Wilcoxon；多组 Kruskal–Wallis（都用 svyranktest）
       des_ok <- subset(design, !is.na(design$variables[[v]]) & !is.na(design$variables[[g]]))
-      k <- nlevels(factor(des_ok$variables[[g]]))
+      des_ok$variables$.g <- factor(des_ok$variables[[g]])
+      k <- nlevels(des_ok$variables$.g)
       method_used <- ""; p_val <- NA_real_
 
       if (k == 2) {
-        rt <- try(svyranktest(as.formula(paste0(v, " ~ ", g)),
+        rt <- try(svyranktest(as.formula(paste0(v, " ~ .g")),
                               design = des_ok, test = "wilcoxon"), silent = TRUE)
         if (!inherits(rt, "try-error")) {
-          method_used <- "Design-based Wilcoxon (svyranktest)"
+          method_used <- "Design-based Wilcoxon rank-sum test"
           p_val <- get_p_from_rank(rt)
         }
       } else if (k >= 3) {
-        rt <- try(svyranktest(as.formula(paste0(v, " ~ ", g)),
+        rt <- try(svyranktest(as.formula(paste0(v, " ~ .g")),
                               design = des_ok, test = "KruskalWallis"), silent = TRUE)
         if (!inherits(rt, "try-error")) {
-          method_used <- "Design-based Kruskal–Wallis (svyranktest)"
+          method_used <- "Design-based Kruskal-Wallis rank test"
           p_val <- get_p_from_rank(rt)
         }
       }
@@ -628,10 +645,10 @@ yyds_svytable1 <- function(
 
   # ---- 合并输出 ----
   if (length(rows) == 0) {
-    return(data.frame(Characteristics=character(), P=character(), Test=character(), check.names=FALSE))
+    return(data.frame(Characteristics=character(), Level=character(), P=character(), Test=character(), check.names=FALSE))
   }
   out <- do.call(rbind, rows)
-  all_cols <- c("Characteristics", lev_cols, "P", "Test")
+  all_cols <- c("Characteristics", lev_cols, "P", "Level",  "Test")
   miss <- setdiff(all_cols, names(out)); if (length(miss)) out[miss] <- ""
   out <- out[, all_cols, drop = FALSE]
   rownames(out) <- NULL

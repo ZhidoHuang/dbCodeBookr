@@ -7,7 +7,11 @@
 #'
 #' @param model A fitted regression model object. Supported types:
 #'  - Cox proportional hazards model (coxph)
-#'  - Generalized linear model (glm) with binomial, poisson, or gaussian family.
+#'  - Survey-weighted Cox proportional hazards model (svycoxph)
+#'  - Generalized linear model (glm) with binomial/quasibinomial,
+#'    poisson/quasipoisson, or gaussian family.
+#'  - Survey-weighted generalized linear model (svyglm) with
+#'    binomial/quasibinomial, poisson/quasipoisson, or gaussian family.
 #'  - Linear model (lm).
 #'
 #' @param effect_digits Number of decimal places for effect estimates. Default is 2.
@@ -109,24 +113,29 @@ yyds_table2 <- function(model,
                         event = TRUE) {
 
   # 1. 模型类型自动检测 -------------------------------------------------
-  if (inherits(model, "coxph")) {
+  if (inherits(model, "svycoxph")) {
+    model_type <- "svycox"
+    effect_name <- "HR"
+    original_data <- model.frame(model)
+    surv_obj <- model.response(original_data)
+  } else if (inherits(model, "coxph")) {
     model_type <- "cox"
     effect_name <- "HR"
     original_data <- model.frame(model)
     surv_obj <- model.response(original_data)
-  } else if (inherits(model, "glm")) {
+  } else if (inherits(model, "svyglm") || inherits(model, "glm")) {
     fam <- family(model)
-    if (fam$family == "binomial" && fam$link == "logit") {
+    if (fam$family %in% c("binomial", "quasibinomial") && fam$link == "logit") {
       model_type <- "logit"
       effect_name <- "OR"
-    } else if (fam$family == "poisson") {
+    } else if (fam$family %in% c("poisson", "quasipoisson")) {
       model_type <- "poisson"
       effect_name <- "RR"
     } else if (fam$family == "gaussian") {
       model_type <- "linear"
       effect_name <- "β"
     } else {
-      stop("Unsupported GLM family/link. Supported: binomial(logit), poisson, or gaussian.")
+      stop("Unsupported GLM family/link. Supported: binomial/quasibinomial(logit), poisson/quasipoisson, or gaussian.")
     }
     original_data <- model.frame(model)
     if (model_type %in% c("logit", "poisson")) {
@@ -137,7 +146,7 @@ yyds_table2 <- function(model,
     effect_name <- "β"
     original_data <- model.frame(model)
   } else {
-    stop("Unsupported model type. Supported: coxph, glm (logit/poisson/linear), or lm.")
+    stop("Unsupported model type. Supported: coxph, svycoxph, glm/svyglm (logit/poisson/linear), or lm.")
   }
 
   # 2. 初始化结果数据框 -------------------------------------------------
@@ -152,9 +161,9 @@ yyds_table2 <- function(model,
 
   # 计算总事件数/总样本量
   total_event_str <- NA
-  if (event && model_type %in% c("cox", "logit")) {
+  if (event && model_type %in% c("cox", "svycox", "logit")) {
     result$event_n <- character()
-    if (model_type == "cox") {
+    if (model_type %in% c("cox", "svycox")) {
       total_events <- sum(surv_obj[, "status"])
       total_n <- nrow(surv_obj)
       total_event_str <- paste0(total_events, "/", total_n)
@@ -173,6 +182,51 @@ yyds_table2 <- function(model,
   z <- qnorm(0.975)  # 95% CI的z值
   terms_info <- attr(model$terms, "dataClasses")[-1]
   vars_in_model <- names(terms_info)
+  vars_in_model <- vars_in_model[!vars_in_model %in% c("(weights)", "(offset)")]
+
+  model_summary <- NULL
+  invisible(capture.output(model_summary <- summary(model)))
+  coef_table <- as.data.frame(model_summary$coefficients,
+                              stringsAsFactors = FALSE,
+                              check.names = FALSE)
+
+  pick_coef_col <- function(candidates) {
+    matched <- intersect(candidates, names(coef_table))
+    if (length(matched) > 0) matched[1] else NA_character_
+  }
+
+  get_coef_info <- function(coef_name) {
+    if (!coef_name %in% rownames(coef_table)) {
+      return(NULL)
+    }
+
+    coef_summary <- coef_table[coef_name, , drop = FALSE]
+
+    if (model_type %in% c("cox", "svycox")) {
+      estimate_col <- "coef"
+      se_col <- if (model_type == "svycox" && "robust se" %in% names(coef_table)) {
+        "robust se"
+      } else {
+        "se(coef)"
+      }
+      p_col <- pick_coef_col(c("Pr(>|z|)", "Pr(>|t|)", "p"))
+    } else {
+      estimate_col <- "Estimate"
+      se_col <- "Std. Error"
+      p_col <- pick_coef_col(c("Pr(>|z|)", "Pr(>|t|)", "p"))
+    }
+
+    needed_cols <- c(estimate_col, se_col, p_col)
+    if (any(is.na(needed_cols)) || !all(needed_cols %in% names(coef_table))) {
+      return(NULL)
+    }
+
+    list(
+      estimate = as.numeric(coef_summary[[estimate_col]]),
+      se = as.numeric(coef_summary[[se_col]]),
+      p_val = as.numeric(coef_summary[[p_col]])
+    )
+  }
 
   # 3. 处理每个变量 -----------------------------------------------------
   for (var in vars_in_model) {
@@ -183,8 +237,8 @@ yyds_table2 <- function(model,
 
     # 获取事件数信息（仅分类模型）
     event_str <- NA
-    if (event && model_type %in% c("cox", "logit") && is.factor(original_data[[var]])) {
-      if (model_type == "cox") {
+    if (event && model_type %in% c("cox", "svycox", "logit") && is.factor(original_data[[var]])) {
+      if (model_type %in% c("cox", "svycox")) {
         event_counts <- table(original_data[[var]], surv_obj[, "status"])
       } else {
         event_counts <- table(original_data[[var]], response_var)
@@ -226,36 +280,16 @@ yyds_table2 <- function(model,
         lvl <- levels[-1][i]
         coef_name <- paste0(var, lvl)
 
-        # 提取系数和p值（区分模型类型）
-        if (model_type == "cox") {
-          coef_available <- coef_name %in% names(coef(model))
-          if (coef_available) {
-            coef_summary <- summary(model)$coefficients[coef_name, ]
-            estimate <- coef_summary["coef"]
-            se <- coef_summary["se(coef)"]
-            p_val <- coef_summary["Pr(>|z|)"]
-          }
-        } else if (model_type == "linear") {
-          coef_available <- coef_name %in% rownames(summary(model)$coefficients)
-          if (coef_available) {
-            coef_summary <- summary(model)$coefficients[coef_name, ]
-            estimate <- coef_summary["Estimate"]
-            se <- coef_summary["Std. Error"]
-            p_val <- coef_summary["Pr(>|t|)"]  # 线性模型用t检验p值
-          }
-        } else {
-          coef_available <- coef_name %in% rownames(summary(model)$coefficients)
-          if (coef_available) {
-            coef_summary <- summary(model)$coefficients[coef_name, ]
-            estimate <- coef_summary["Estimate"]
-            se <- coef_summary["Std. Error"]
-            p_val <- coef_summary["Pr(>|z|)"]
-          }
-        }
+        coef_info <- get_coef_info(coef_name)
+        coef_available <- !is.null(coef_info)
 
         if (coef_available) {
+          estimate <- coef_info$estimate
+          se <- coef_info$se
+          p_val <- coef_info$p_val
+
           # 计算效应量和CI
-          if (model_type %in% c("cox", "logit", "poisson")) {
+          if (model_type %in% c("cox", "svycox", "logit", "poisson")) {
             effect <- exp(estimate)
             lower <- exp(estimate - z * se)
             upper <- exp(estimate + z * se)
@@ -279,25 +313,16 @@ yyds_table2 <- function(model,
       }
     } else {
       # 处理连续变量
-      if (model_type == "cox") {
-        coef_summary <- summary(model)$coefficients[var, ]
-        estimate <- coef_summary["coef"]
-        se <- coef_summary["se(coef)"]
-        p_val <- coef_summary["Pr(>|z|)"]
-      } else if (model_type == "linear") {
-        coef_summary <- summary(model)$coefficients[var, ]
-        estimate <- coef_summary["Estimate"]
-        se <- coef_summary["Std. Error"]
-        p_val <- coef_summary["Pr(>|t|)"]  # 线性模型用t检验p值
-      } else {
-        coef_summary <- summary(model)$coefficients[var, ]
-        estimate <- coef_summary["Estimate"]
-        se <- coef_summary["Std. Error"]
-        p_val <- coef_summary["Pr(>|z|)"]
+      coef_info <- get_coef_info(var)
+      if (is.null(coef_info)) {
+        next
       }
+      estimate <- coef_info$estimate
+      se <- coef_info$se
+      p_val <- coef_info$p_val
 
       # 计算效应量和CI
-      if (model_type %in% c("cox", "logit", "poisson")) {
+      if (model_type %in% c("cox", "svycox", "logit", "poisson")) {
         effect <- exp(estimate)
         lower <- exp(estimate - z * se)
         upper <- exp(estimate + z * se)
@@ -369,6 +394,3 @@ yyds_table2 <- function(model,
   row.names(final_result) <- NULL
   return(final_result)
 }
-
-
-

@@ -1,2 +1,4 @@
 ^dbCodeBookr\.Rproj$
 ^\.Rproj\.user$
+^\.git$
+^\.git/

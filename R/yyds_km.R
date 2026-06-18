@@ -8,6 +8,7 @@
 #' \itemize{
 #'   \item 未调整时使用 `survival::survfit()` 绘制 `1 - S(t)`。
 #'   \item 调整后使用 `survival::coxph()` 拟合 Cox 模型，并通过边际标准化预测累计事件概率。
+#'   \item 提供 `design` 时使用 `survey::svykm()` 绘制复杂抽样加权 KM 曲线。
 #' }
 #'
 #' 对于 0/1/2 结局：
@@ -17,6 +18,10 @@
 #' }
 #'
 #' @param data 数据框，包含随访时间、结局变量、暴露/分组变量以及可能的调整变量。
+#'   普通 KM/CIF 分析使用；若提供 `design`，可省略。
+#' @param design survey 包创建的复杂抽样设计对象。若提供，则使用
+#'   `survey::svykm()` 绘制复杂抽样加权 KM 曲线，并使用
+#'   `survey::svylogrank()` 计算加权 log-rank P 值。
 #' @param time_var 字符，随访时间变量名。
 #' @param outcome 字符，结局变量名。
 #'   KM 曲线要求编码为 0/1，其中 0 = 删失，1 = 事件。
@@ -64,10 +69,12 @@
 #'   \item{risk_table_plot}{风险表格的 ggplot 对象；若未绘制风险表格则为 `NULL`。}
 #'   \item{risk_table_data}{风险表格数据框；若未绘制风险表格则为 `NULL`。}
 #'   \item{data}{用于绘图的曲线数据框，包含时间、估计值、分组和模型类型。}
-#'   \item{model}{拟合模型对象，可能为 `survfit`、`coxph`、`prodlim` 或 `FGR`。}
+#'   \item{model}{拟合模型对象，可能为 `survfit`、`coxph`、`prodlim`、`FGR` 或 `svykm`。}
 #'   \item{plot_data}{实际用于分析的数据，即删除相关变量缺失值后的数据。}
+#'   \item{design}{实际用于加权 KM 的 survey design；普通分析时为 `NULL`。}
 #'   \item{curve_type}{字符，`"km"` 或 `"cif"`。}
 #'   \item{adjusted}{逻辑值，表示是否进行了协变量调整。}
+#'   \item{weighted}{逻辑值，表示是否使用了复杂抽样加权 KM。}
 #'   \item{xlim}{实际使用的 x 轴范围。}
 #'   \item{x_breaks}{实际使用的 x 轴刻度，同时也是风险表格统计时间点。}
 #'   \item{p_value}{未调整组间比较的 P 值；调整后曲线或未显示 P 值时为 `NA`。}
@@ -87,9 +94,12 @@
 #' P 值仅用于未调整曲线：
 #' \itemize{
 #'   \item KM 曲线使用 log-rank 检验，即 `survival::survdiff()`。
+#'   \item 加权 KM 曲线使用 survey-weighted log-rank 检验，即 `survey::svylogrank()`。
 #'   \item CIF 曲线使用 Gray's test，即 `cmprsk::cuminc()` 返回的检验结果。
 #' }
 #' 调整后曲线不显示 P 值，避免将未调整组间检验误解为调整后模型检验。
+#' 当前 `design` 分支支持未调整的 0/1 KM 曲线；复杂抽样加权下的调整后
+#' 边际标准化曲线和 0/1/2 CIF 暂不在本函数中计算。
 #'
 #' @importFrom survival survfit Surv coxph survdiff
 #' @importFrom riskRegression predictRisk FGR
@@ -175,10 +185,11 @@
 #'
 #' @export
 yyds_km <- function(
-    data,
+    data = NULL,
     time_var,
     outcome,
     exposure,
+    design = NULL,
     adjusted = NULL,
     xlim = NULL,
     ylim = NULL,
@@ -208,7 +219,23 @@ yyds_km <- function(
   requireNamespace("patchwork")
   requireNamespace("cmprsk")
 
+  is_survey <- !is.null(design)
+
+  if (is_survey) {
+    requireNamespace("survey")
+    if (is.null(design$variables)) {
+      stop("design must be a survey design object with a variables data frame.")
+    }
+    data <- design$variables
+  } else if (is.null(data)) {
+    stop("Either data or design must be provided.")
+  }
+
   is_adjusted <- !is.null(adjusted)
+
+  if (is_survey && is_adjusted) {
+    stop("design currently supports unadjusted survey-weighted KM curves only; do not set adjusted.")
+  }
 
   if (is_adjusted) {
     covars <- unique(c(exposure, adjusted))
@@ -218,9 +245,36 @@ yyds_km <- function(
 
   needed_vars <- unique(c(time_var, outcome, exposure, covars))
 
-  plot_dat <- data |>
-    dplyr::select(dplyr::all_of(needed_vars)) |>
-    tidyr::drop_na()
+  design_use <- NULL
+
+  if (is_survey) {
+    missing_vars <- setdiff(needed_vars, names(design$variables))
+    if (length(missing_vars) > 0) {
+      stop("The following variables are not in design$variables: ",
+           paste(missing_vars, collapse = ", "))
+    }
+
+    complete_rows <- stats::complete.cases(design$variables[, needed_vars, drop = FALSE])
+    if (!any(complete_rows)) {
+      stop("No complete cases are available for the requested KM analysis.")
+    }
+
+    complete_var <- ".yyds_km_complete"
+    while (complete_var %in% names(design$variables)) {
+      complete_var <- paste0(complete_var, "_")
+    }
+
+    design$variables[[complete_var]] <- complete_rows
+    design_use <- subset(design, get(complete_var))
+    design_use$variables[[complete_var]] <- NULL
+
+    plot_dat <- design_use$variables |>
+      dplyr::select(dplyr::all_of(needed_vars))
+  } else {
+    plot_dat <- data |>
+      dplyr::select(dplyr::all_of(needed_vars)) |>
+      tidyr::drop_na()
+  }
 
   outcome_values <- sort(unique(plot_dat[[outcome]]))
 
@@ -230,6 +284,10 @@ yyds_km <- function(
     curve_type <- "cif"
   } else {
     stop("outcome must be coded as 0/1 for KM or 0/1/2 for CIF.")
+  }
+
+  if (is_survey && curve_type != "km") {
+    stop("design currently supports 0/1 survey-weighted KM curves only; survey-weighted CIF is not implemented.")
   }
 
   cause <- 1
@@ -327,6 +385,15 @@ yyds_km <- function(
     )
   }
 
+  get_svy_logrank_p <- function(design, time_var, outcome, exposure) {
+    f <- stats::as.formula(
+      paste0("survival::Surv(", time_var, ", ", outcome, ") ~ ", exposure)
+    )
+
+    lr <- survey::svylogrank(f, design = design)
+    as.numeric(lr[[2]][["p"]])
+  }
+
   get_gray_p <- function(data, time_var, outcome, exposure, cause = 1) {
     ci <- cmprsk::cuminc(
       ftime = data[[time_var]],
@@ -352,7 +419,55 @@ yyds_km <- function(
   }
 
   if (curve_type == "km") {
-    if (is_adjusted) {
+    if (is_survey) {
+      km_formula <- stats::as.formula(
+        paste0("survival::Surv(", time_var, ", ", outcome, ") ~ ", exposure)
+      )
+
+      fit <- survey::svykm(
+        km_formula,
+        design = design_use,
+        se = TRUE
+      )
+
+      if (inherits(fit, "svykmlist")) {
+        curve_dat <- lapply(names(fit), function(g) {
+          tibble::tibble(
+            time = as.numeric(fit[[g]]$time),
+            estimate = 1 - as.numeric(fit[[g]]$surv),
+            group = as.character(g),
+            model = "Survey-weighted KM"
+          )
+        }) |>
+          dplyr::bind_rows()
+      } else {
+        curve_dat <- tibble::tibble(
+          time = as.numeric(fit$time),
+          estimate = 1 - as.numeric(fit$surv),
+          group = as.character(group_levels[1]),
+          model = "Survey-weighted KM"
+        )
+      }
+
+      curve_dat <- curve_dat |>
+        dplyr::filter(time >= xlim[1], time <= xlim[2])
+
+      if (xlim[1] == 0) {
+        origin_dat <- tibble::tibble(
+          time = 0,
+          estimate = 0,
+          group = as.character(group_levels),
+          model = "Survey-weighted KM"
+        )
+
+        curve_dat <- dplyr::bind_rows(
+          origin_dat,
+          curve_dat
+        ) |>
+          dplyr::arrange(group, time)
+      }
+
+    } else if (is_adjusted) {
       rhs <- paste(covars, collapse = " + ")
 
       cox_formula <- stats::as.formula(
@@ -513,17 +628,31 @@ yyds_km <- function(
 
   if (show_p && !is_adjusted) {
     if (curve_type == "km") {
-      p_value <- get_logrank_p(
-        data = plot_dat,
-        time_var = time_var,
-        outcome = outcome,
-        exposure = exposure
-      )
+      if (is_survey) {
+        p_value <- get_svy_logrank_p(
+          design = design_use,
+          time_var = time_var,
+          outcome = outcome,
+          exposure = exposure
+        )
 
-      p_label <- paste0(
-        "Log-rank ",
-        format_p_value(p_value, digits = p_digits)
-      )
+        p_label <- paste0(
+          "Survey log-rank ",
+          format_p_value(p_value, digits = p_digits)
+        )
+      } else {
+        p_value <- get_logrank_p(
+          data = plot_dat,
+          time_var = time_var,
+          outcome = outcome,
+          exposure = exposure
+        )
+
+        p_label <- paste0(
+          "Log-rank ",
+          format_p_value(p_value, digits = p_digits)
+        )
+      }
     }
 
     if (curve_type == "cif") {
@@ -666,8 +795,10 @@ yyds_km <- function(
     data = curve_dat,
     model = fit,
     plot_data = plot_dat,
+    design = design_use,
     curve_type = curve_type,
     adjusted = is_adjusted,
+    weighted = is_survey,
     xlim = xlim,
     x_breaks = x_breaks,
     p_value = p_value,

@@ -33,6 +33,7 @@ Imports:
     rstudioapi,
     scales,
     stats,
+    survey,
     survival,
     tibble,
     tidyr
