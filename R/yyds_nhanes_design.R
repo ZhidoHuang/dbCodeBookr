@@ -30,7 +30,8 @@
 #' 本函数不会猜测应该使用哪一类科学权重。用户通过 `weight` 显式传入候选原始
 #' 权重变量，函数只根据 NHANES 周期规则选择和缩放权重：
 #' \itemize{
-#'   \item 1999-2002 使用可用的 `*4YR` 权重。
+#'   \item 同一分析分段同时包含 1999-2000 和 2001-2002 时，这两个 YEAR 使用
+#'     可用的 `*4YR` 权重；只纳入其中一个时使用可用的 `*2YR` 权重。
 #'   \item 普通完整两年周期使用可用的 `*2YR` 权重。
 #'   \item 2017-2020 使用可用的 `*PRP` pre-pandemic 权重，并按 3.2 年处理。
 #'   \item 2021-2023 使用可用的 `*2YR` 权重；`WTPH2YR` 与其他 `*2YR`
@@ -135,10 +136,7 @@ yyds_nhanes_design <- function(data,
 
     total_years <- if (is.null(period)) NA_real_ else .yyds_nhanes_sum_cycle_years(selected_cycles)
     log_rows <- vector("list", length(selected_cycles))
-    prefer_two_year_early <- no_merge || (
-      length(selected_cycles) == 1 &&
-        selected_cycles[[1]] %in% c("1999-2000", "2001-2002")
-    )
+    use_four_year_early <- all(c("1999-2000", "2001-2002") %in% selected_cycles)
 
     for (i in seq_along(selected_cycles)) {
       yr <- selected_cycles[[i]]
@@ -147,7 +145,7 @@ yyds_nhanes_design <- function(data,
         weights = weight,
         data = dat,
         year_var = year_var,
-        prefer_two_year_1999_2002 = prefer_two_year_early
+        use_four_year_1999_2002 = use_four_year_early
       )
       idx <- as.character(dat[[year_var]]) == yr
       multiplier <- if (is.null(period)) 1 else rule$represented_years / total_years
@@ -482,14 +480,11 @@ yyds_nhanes_design <- function(data,
                                     weights,
                                     data,
                                     year_var,
-                                    prefer_two_year_1999_2002 = FALSE) {
+                                    use_four_year_1999_2002 = FALSE) {
   year_label <- as.character(year_label)
 
   if (year_label %in% c("1999-2000", "2001-2002")) {
-    if (prefer_two_year_1999_2002) {
-      choice <- .yyds_nhanes_choose_weight(data, year_var, year_label, weights, "2YR")
-      .yyds_nhanes_require_weight(choice, year_label, "2YR")
-    } else {
+    if (use_four_year_1999_2002) {
       choice_4yr <- .yyds_nhanes_choose_weight(data, year_var, year_label, weights, "4YR")
       if (!is.na(choice_4yr$weight_var)) {
         choice <- choice_4yr
@@ -500,6 +495,9 @@ yyds_nhanes_design <- function(data,
         }
         choice <- choice_2yr
       }
+    } else {
+      choice <- .yyds_nhanes_choose_weight(data, year_var, year_label, weights, "2YR")
+      .yyds_nhanes_require_weight(choice, year_label, "2YR")
     }
     represented_years <- if (identical(choice$type, "4YR")) 4 else 2
     return(list(

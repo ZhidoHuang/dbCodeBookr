@@ -59,7 +59,8 @@ yyds_nhanes_design(
 本函数不会猜测应该使用哪一类科学权重。用户通过 \code{weight} 显式传入候选原始
 权重变量，函数只根据 NHANES 周期规则选择和缩放权重：
 \itemize{
-\item 1999-2002 使用可用的 \verb{*4YR} 权重。
+\item 同一分析分段同时包含 1999-2000 和 2001-2002 时，这两个 YEAR 使用
+可用的 \verb{*4YR} 权重；只纳入其中一个时使用可用的 \verb{*2YR} 权重。
 \item 普通完整两年周期使用可用的 \verb{*2YR} 权重。
 \item 2017-2020 使用可用的 \verb{*PRP} pre-pandemic 权重，并按 3.2 年处理。
 \item 2021-2023 使用可用的 \verb{*2YR} 权重；\code{WTPH2YR} 与其他 \verb{*2YR}
