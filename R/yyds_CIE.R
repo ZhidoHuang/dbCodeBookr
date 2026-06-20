@@ -90,11 +90,6 @@
 yyds_CIE <- function(data, exposure, outcome, forced_vars, candidate_vars,
                      threshold = 10, time_var = NULL,
                      family = binomial) {
-  if (!requireNamespace("survival", quietly = TRUE)) {
-    install.packages("survival")
-  }
-  library(survival)
-
   model_type <- if (!is.null(time_var)) "coxph" else "glm"
 
   fit_model <- function(covars) {

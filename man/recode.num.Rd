@@ -5,7 +5,7 @@
 \title{Recode non-numeric numeric variables
 重新编码非数值型的数值变量}
 \usage{
-\code{recode.chr(df$var)}
+recode.num(x)
 }
 \arguments{
 \item{x}{A vector to be converted to numeric}
@@ -39,10 +39,10 @@ recode.num(df$age)
 # 生成的代码如下,
 
 # recode.num(df$age)
-df$age <- case_when(
+df$age <- as.numeric(dplyr::case_when(
   df$age == "> 80 year" ~ "> 80 year",
   df$age == "<20 year" ~ "<20 year",
   TRUE ~ df$age
-) \%>\% as.numeric()
+))
 
 }

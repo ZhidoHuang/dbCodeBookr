@@ -24,11 +24,13 @@ Imports:
     htmltools,
     mediation,
     moments,
+    openxlsx,
     parallel,
     patchwork,
     prodlim,
     purrr,
     riskRegression,
+    rlang,
     rms,
     rstudioapi,
     scales,
@@ -37,3 +39,7 @@ Imports:
     survival,
     tibble,
     tidyr
+Suggests:
+    hongkong,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

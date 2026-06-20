@@ -142,9 +142,6 @@ yyds_sub_analysis <- function(data = NULL,
                               xlim = NULL,
                               ticks_at = NULL) {
 
-  library(dplyr)
-  library(survival)
-
   # time和family_type不能同时为NULL,也不能同时存在
   if (is.null(time) && is.null(family_type)) {
     stop("\n Either 'time' or 'family_type' must be provided.")
@@ -228,7 +225,7 @@ yyds_sub_analysis <- function(data = NULL,
     dt_plot$Subgroup <- paste0("     ", dt_plot$Subgroup)
     dt_plot <- dt_plot %>%
       group_by(Stratum, .drop = FALSE) %>%
-      do({
+      dplyr::do({
         a <- .$Stratum[1]
         b <- .$p_interaction[1]
         .$p_interaction[1] <- NA
@@ -241,7 +238,7 @@ yyds_sub_analysis <- function(data = NULL,
 
         rbind(new_row, .)
       }) %>%
-      ungroup()
+      dplyr::ungroup()
 
     dt_plot[, c(8:10)] <- sapply(dt_plot[, c(8:10)], as.numeric)
 
@@ -489,7 +486,7 @@ yyds_sub_analysis <- function(data = NULL,
         mutate(
           total_event_N = paste0(sum(event, na.rm = TRUE), "/", sum(N, na.rm = TRUE))
         ) %>%
-        ungroup()
+        dplyr::ungroup()
 
       dt_plot <- combined_results[, c(1:11, 15)]
       result_table <- combined_results[, c(1:3, 15, 4:7, 11)]
@@ -499,7 +496,7 @@ yyds_sub_analysis <- function(data = NULL,
         mutate(
           total_event_N = sum(as.numeric(`Events, n/N`), na.rm = TRUE)
         ) %>%
-        ungroup()
+        dplyr::ungroup()
 
       dt_plot <- combined_results[, c(1:11, 13)]
       result_table <- combined_results[, c(1:3, 13, 4:7, 11)]
@@ -509,7 +506,7 @@ yyds_sub_analysis <- function(data = NULL,
     result_table$Subgroup <- paste0("      ", result_table$Subgroup)
     result_table <- result_table %>%
       group_by(Stratum, .drop = FALSE) %>%
-      do({
+      dplyr::do({
         a <- .$Stratum[1]
         b <- .$p_interaction[1]
         .$p_interaction[1] <- NA
@@ -522,7 +519,7 @@ yyds_sub_analysis <- function(data = NULL,
 
         rbind(new_row, .)
       }) %>%
-      ungroup()
+      dplyr::ungroup()
 
     p <- make_forest_plot(dt_plot, design$variables[[exposure]])
     attr(result_table, "forest_plot") <- p
@@ -579,7 +576,7 @@ yyds_sub_analysis <- function(data = NULL,
     }
 
     results <- data_sub %>%
-      group_by(!!sym(sub)) %>%
+      group_by(!!rlang::sym(sub)) %>%
       group_modify(~ {
         current_data <- .
 
@@ -613,7 +610,7 @@ yyds_sub_analysis <- function(data = NULL,
 
         if (rows == 1) f_table[1:1, ] else f_table[2:rows, ]
       }) %>%
-      ungroup()
+      dplyr::ungroup()
 
     adjusted2 <- paste(unique(c(adjust_vars, sub)), collapse = "+")
 
@@ -687,7 +684,7 @@ yyds_sub_analysis <- function(data = NULL,
   result_table$Subgroup <- paste0("      ",result_table$Subgroup)
   result_table <- result_table %>%
     group_by(Stratum, .drop = FALSE) %>%  # .drop = FALSE 保留所有因子水平
-    do({
+    dplyr::do({
       a <- .$Stratum[1]
       b <- .$p_interaction[1]
       .$p_interaction[1] <- NA
@@ -702,7 +699,7 @@ yyds_sub_analysis <- function(data = NULL,
       # 合并
       rbind(new_row, .)
     }) %>%
-    ungroup()
+    dplyr::ungroup()
 
 
   p <- make_forest_plot(dt_plot, data[[exposure]])

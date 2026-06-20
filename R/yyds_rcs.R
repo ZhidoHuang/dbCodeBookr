@@ -20,6 +20,8 @@
 #' @param rug 逻辑值。是否在 x 轴添加地毯图（默认 `FALSE`）。
 #' @param color_dist 字符串。分布图颜色（默认 `"#374E55"`）。
 #' @param color_rcs 字符串。RCS 曲线颜色（默认 `"#F79118"`）。
+#' @param color_ribbon 字符串或 `NA`。置信区间填充颜色；默认 `NA`，由函数
+#'   根据曲线颜色生成透明填充色。
 #'
 #' @return 返回一个包含以下元素的列表（不可见）：
 #' - `plot`: ggplot2 图形对象（可以调用继续用\pkg{ggplot2}作图）
@@ -371,4 +373,3 @@ yyds_rcs <- function(fit, ref_zero = TRUE, ref = NULL,
   options(datadist = NULL)
   invisible(list(predictions = p, plot = plot_rcs))
 }
-

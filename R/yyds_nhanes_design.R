@@ -10,7 +10,8 @@
 #'   若传入多个分析周期，函数会按各分段分别构造权重，再合并为一个
 #'   `survey.design` 对象。
 #' @param weight 字符向量，候选原始权重变量名，例如
-#'   `c("WTMEC4YR", "WTMEC2YR", "WTMECPRP", "WTPH2YR")`。
+#'   `c("WTMEC4YR", "WTMEC2YR", "WTMECPRP", "WTPH2YR")`。变量名匹配
+#'   不区分大小写，但所有传入变量都必须能在 `data` 中唯一匹配。
 #' @param year_var 周期标签变量名。默认为 `"YEAR"`。期望标签包括
 #'   `"1999-2000"`、`"2017-2020"`、`"2021-2023"` 等。
 #' @param strata 分层变量名。默认为 `"SDMVSTRA"`。
@@ -30,12 +31,15 @@
 #' 权重变量，函数只根据 NHANES 周期规则选择和缩放权重：
 #' \itemize{
 #'   \item 1999-2002 使用可用的 `*4YR` 权重。
-#'   \item 普通完整两年周期使用可用的 `*2YR` 权重，但不把 `*PH2YR` 当作普通
-#'     `*2YR` 权重。
+#'   \item 普通完整两年周期使用可用的 `*2YR` 权重。
 #'   \item 2017-2020 使用可用的 `*PRP` pre-pandemic 权重，并按 3.2 年处理。
-#'   \item 2021-2023 若存在 `WTPH2YR`，优先使用 `WTPH2YR`；否则再尝试普通
-#'     `*2YR` 权重。
+#'   \item 2021-2023 使用可用的 `*2YR` 权重；`WTPH2YR` 与其他 `*2YR`
+#'     权重按相同规则比较，不再固定优先。
 #' }
+#' 若同一 YEAR 存在多个同类候选权重，函数会分别在 `2YR`、`4YR`、`PRP`
+#' 类型内部比较有效数据量。有效权重定义为可转为数值且大于 0；有效数为 0
+#' 的变量不参与选择，其余变量中有效数最少者优先，并列时按 `weight` 的传入
+#' 顺序选择。
 #' 对于合并周期，生成权重的计算公式为：
 #' `原始权重 * 该原始权重代表年数 / 分析周期总年数`。
 #' 函数会始终在创建 `survey::svydesign()` 前剔除生成权重缺失、为 0 或小于
@@ -50,7 +54,7 @@
 #'   weight = c("WTMEC4YR", "WTMEC2YR", "WTMECPRP", "WTPH2YR")
 #' )
 #'
-#' des_list <- yyds_nhanes_design(
+#' des_segmented <- yyds_nhanes_design(
 #'   data = dt,
 #'   cycle = c("1999-2002", "2003-2006"),
 #'   weight = c("WTMEC4YR", "WTMEC2YR")
@@ -77,8 +81,10 @@ yyds_nhanes_design <- function(data,
   }
 
   if (missing(weight) || length(weight) == 0) {
-    stop("weight must contain at least one candidate original weight variable.")
+    stop("weight 必须至少包含一个候选原始权重变量名。")
   }
+
+  weight <- .yyds_nhanes_resolve_weight_names(weight, names(data))
 
   required_vars <- c(year_var, strata, psu)
   missing_required <- setdiff(required_vars, names(data))
@@ -87,18 +93,16 @@ yyds_nhanes_design <- function(data,
          paste(missing_required, collapse = ", "))
   }
 
-  missing_weights <- setdiff(weight, names(data))
-  if (length(missing_weights) > 0) {
-    stop("The following weight variables are missing from data: ",
-         paste(missing_weights, collapse = ", "))
-  }
-
   if (is.null(cycle)) {
     cycle_specs <- .yyds_nhanes_default_cycle_specs(unique(as.character(data[[year_var]])))
     no_merge <- TRUE
   } else {
     cycle_specs <- stats::setNames(as.list(cycle), cycle)
     no_merge <- FALSE
+    .yyds_nhanes_validate_cycle_specs(
+      cycle_specs = cycle_specs,
+      available_years = unique(as.character(data[[year_var]]))
+    )
   }
 
   original_lonely <- getOption("survey.lonely.psu")
@@ -129,13 +133,22 @@ yyds_nhanes_design <- function(data,
       stop("No rows remain after selecting cycle = ", ifelse(is.null(period), "NULL", period))
     }
 
-    n_before_filter <- nrow(dat)
     total_years <- if (is.null(period)) NA_real_ else .yyds_nhanes_sum_cycle_years(selected_cycles)
     log_rows <- vector("list", length(selected_cycles))
+    prefer_two_year_early <- no_merge || (
+      length(selected_cycles) == 1 &&
+        selected_cycles[[1]] %in% c("1999-2000", "2001-2002")
+    )
 
     for (i in seq_along(selected_cycles)) {
       yr <- selected_cycles[[i]]
-      rule <- .yyds_nhanes_cycle_rule(yr, weight, prefer_two_year_1999_2002 = no_merge)
+      rule <- .yyds_nhanes_cycle_rule(
+        year_label = yr,
+        weights = weight,
+        data = dat,
+        year_var = year_var,
+        prefer_two_year_1999_2002 = prefer_two_year_early
+      )
       idx <- as.character(dat[[year_var]]) == yr
       multiplier <- if (is.null(period)) 1 else rule$represented_years / total_years
 
@@ -151,6 +164,7 @@ yyds_nhanes_design <- function(data,
         represented_years = rule$represented_years,
         total_years = log_total_years,
         multiplier = multiplier,
+        n_valid_weight = rule$n_valid,
         n_rows = sum(idx),
         n_missing_or_nonpositive = bad_weight_n,
         stringsAsFactors = FALSE
@@ -168,7 +182,6 @@ yyds_nhanes_design <- function(data,
     if (print_log) {
       .yyds_nhanes_cat_design_log(
         period_label = period_label,
-        selected_cycles = selected_cycles,
         weight_log = weight_log,
         n_after_filter = nrow(dat),
         n_bad_weight = bad_weight_total
@@ -205,7 +218,6 @@ yyds_nhanes_design <- function(data,
 
     .yyds_nhanes_cat_design_log(
       period_label = paste(names(cycle_specs), collapse = ", "),
-      selected_cycles = if (no_merge) names(cycle_specs) else weight_log_all$YEAR,
       weight_log = weight_log_all,
       n_after_filter = nrow(combined_data),
       n_bad_weight = sum(weight_log_all$n_missing_or_nonpositive)
@@ -235,7 +247,6 @@ yyds_nhanes_design <- function(data,
 }
 
 .yyds_nhanes_cat_design_log <- function(period_label,
-                                        selected_cycles,
                                         weight_log,
                                         n_after_filter,
                                         n_bad_weight) {
@@ -297,6 +308,112 @@ yyds_nhanes_design <- function(data,
     out <- setdiff(out, "2017-2018")
   }
   stats::setNames(as.list(out), out)
+}
+
+.yyds_nhanes_validate_cycle_specs <- function(cycle_specs, available_years) {
+  available_years <- as.character(available_years)
+  selected <- lapply(cycle_specs, .yyds_nhanes_expand_period, available_years = available_years)
+  expected <- lapply(cycle_specs, .yyds_nhanes_expected_cycles)
+
+  missing_details <- unlist(Map(function(period, wanted) {
+    missing <- setdiff(wanted, available_years)
+    if (length(missing) == 0) character(0) else {
+      paste0(period, " 缺少：", paste(missing, collapse = ", "))
+    }
+  }, names(cycle_specs), expected), use.names = FALSE)
+  if (length(missing_details) > 0) {
+    stop(
+      "cycle 指定的分析周期在 data$YEAR 中不完整：\n  - ",
+      paste(missing_details, collapse = "\n  - ")
+    )
+  }
+
+  selected_long <- data.frame(
+    analysis_cycle = rep(names(cycle_specs), lengths(selected)),
+    YEAR = unlist(selected, use.names = FALSE),
+    stringsAsFactors = FALSE
+  )
+  overlap_years <- unique(selected_long$YEAR[duplicated(selected_long$YEAR)])
+  if (length(overlap_years) > 0) {
+    details <- vapply(overlap_years, function(year) {
+      periods <- selected_long$analysis_cycle[selected_long$YEAR == year]
+      paste0(year, " -> ", paste(periods, collapse = ", "))
+    }, character(1))
+    stop(
+      "cycle 分段存在重叠 YEAR，合并为一个 design 会重复纳入样本：\n  - ",
+      paste(details, collapse = "\n  - ")
+    )
+  }
+
+  invisible(TRUE)
+}
+
+.yyds_nhanes_expected_cycles <- function(period) {
+  canonical <- c(
+    "1999-2000", "2001-2002", "2003-2004", "2005-2006", "2007-2008",
+    "2009-2010", "2011-2012", "2013-2014", "2015-2016", "2017-2018",
+    "2017-2020", "2021-2023"
+  )
+  target <- .yyds_nhanes_parse_year_range(period)
+  selected <- canonical[vapply(canonical, function(year) {
+    bounds <- .yyds_nhanes_parse_year_range(year)
+    .yyds_nhanes_range_overlap(bounds[[1]], bounds[[2]], target[[1]], target[[2]])
+  }, logical(1))]
+
+  if (target[[2]] >= 2020 && target[[1]] <= 2020) {
+    selected <- setdiff(selected, "2017-2018")
+  } else {
+    selected <- setdiff(selected, "2017-2020")
+  }
+  .yyds_nhanes_order_cycles(selected)
+}
+
+.yyds_nhanes_resolve_weight_names <- function(weight, data_names) {
+  if (!is.character(weight) || anyNA(weight) || any(!nzchar(trimws(weight)))) {
+    stop("weight 必须是仅包含非空变量名的字符向量。")
+  }
+
+  requested <- trimws(weight)
+  data_key <- toupper(data_names)
+  requested_key <- toupper(requested)
+  hits <- lapply(requested_key, function(x) which(data_key == x))
+
+  ambiguous <- which(lengths(hits) > 1)
+  if (length(ambiguous) > 0) {
+    details <- vapply(ambiguous, function(i) {
+      paste0(requested[[i]], " -> ", paste(data_names[hits[[i]]], collapse = ", "))
+    }, character(1))
+    stop(
+      "data 中存在忽略大小写后重名的列，以下 weight 变量无法唯一匹配：\n  - ",
+      paste(details, collapse = "\n  - ")
+    )
+  }
+
+  missing <- which(lengths(hits) == 0)
+  if (length(missing) > 0) {
+    available <- data_names[grepl("(2YR|4YR|PRP)$", data_names, ignore.case = TRUE)]
+    available_text <- if (length(available) == 0) {
+      "  - （无）"
+    } else {
+      paste0("  - ", available, collapse = "\n")
+    }
+    stop(
+      "weight 中以下变量未在 data 中找到（忽略大小写后仍未匹配）：\n  - ",
+      paste(requested[missing], collapse = "\n  - "),
+      "\ndata 中可用的 2YR/4YR/PRP 权重变量：\n", available_text
+    )
+  }
+
+  resolved <- data_names[vapply(hits, `[[`, integer(1), 1L)]
+  unsupported <- resolved[!grepl("(2YR|4YR|PRP)$", resolved, ignore.case = TRUE)]
+  if (length(unsupported) > 0) {
+    stop(
+      "以下 weight 变量无法识别权重类型；变量名必须以 2YR、4YR 或 PRP 结尾：\n  - ",
+      paste(unsupported, collapse = "\n  - ")
+    )
+  }
+
+  resolved[!duplicated(toupper(resolved))]
 }
 
 .yyds_nhanes_as_numeric_weight <- function(x) {
@@ -361,61 +478,102 @@ yyds_nhanes_design <- function(data,
   yr[[2]] - yr[[1]] + 1
 }
 
-.yyds_nhanes_cycle_rule <- function(year_label, weights, prefer_two_year_1999_2002 = FALSE) {
+.yyds_nhanes_cycle_rule <- function(year_label,
+                                    weights,
+                                    data,
+                                    year_var,
+                                    prefer_two_year_1999_2002 = FALSE) {
   year_label <- as.character(year_label)
 
   if (year_label %in% c("1999-2000", "2001-2002")) {
     if (prefer_two_year_1999_2002) {
-      w <- .yyds_nhanes_choose_weight(weights, "2YR")
-      if (is.na(w)) {
-        stop("cycle = NULL treats YEAR ", year_label,
-             " as an independent two-year cycle, so a 2YR weight is required.")
-      }
+      choice <- .yyds_nhanes_choose_weight(data, year_var, year_label, weights, "2YR")
+      .yyds_nhanes_require_weight(choice, year_label, "2YR")
     } else {
-      w <- .yyds_nhanes_choose_weight(weights, "4YR")
-      if (is.na(w)) {
-        w <- .yyds_nhanes_choose_weight(weights, "2YR")
-      }
-      if (is.na(w)) {
-        stop("YEAR ", year_label, " requires a 4YR or 2YR weight, but none was provided.")
+      choice_4yr <- .yyds_nhanes_choose_weight(data, year_var, year_label, weights, "4YR")
+      if (!is.na(choice_4yr$weight_var)) {
+        choice <- choice_4yr
+      } else {
+        choice_2yr <- .yyds_nhanes_choose_weight(data, year_var, year_label, weights, "2YR")
+        if (is.na(choice_2yr$weight_var)) {
+          .yyds_nhanes_stop_no_weight(year_label, list(choice_4yr, choice_2yr))
+        }
+        choice <- choice_2yr
       }
     }
-    represented_years <- if (grepl("4YR$", w)) 4 else 2
-    return(list(weight_var = w, represented_years = represented_years))
+    represented_years <- if (identical(choice$type, "4YR")) 4 else 2
+    return(list(
+      weight_var = choice$weight_var,
+      represented_years = represented_years,
+      n_valid = choice$n_valid
+    ))
   }
 
   if (identical(year_label, "2017-2020")) {
-    w <- .yyds_nhanes_choose_weight(weights, "PRP")
-    if (is.na(w)) {
-      stop("YEAR 2017-2020 requires a PRP weight, but none was provided.")
-    }
-    return(list(weight_var = w, represented_years = 3.2))
+    choice <- .yyds_nhanes_choose_weight(data, year_var, year_label, weights, "PRP")
+    .yyds_nhanes_require_weight(choice, year_label, "PRP")
+    return(list(weight_var = choice$weight_var, represented_years = 3.2, n_valid = choice$n_valid))
   }
 
   if (identical(year_label, "2021-2023")) {
-    w <- if ("WTPH2YR" %in% weights) "WTPH2YR" else .yyds_nhanes_choose_weight(weights, "2YR")
-    if (is.na(w)) {
-      stop("YEAR 2021-2023 requires WTPH2YR or a 2YR weight, but none was provided.")
-    }
-    return(list(weight_var = w, represented_years = 2))
+    choice <- .yyds_nhanes_choose_weight(data, year_var, year_label, weights, "2YR")
+    .yyds_nhanes_require_weight(choice, year_label, "2YR")
+    return(list(weight_var = choice$weight_var, represented_years = 2, n_valid = choice$n_valid))
   }
 
-  w <- .yyds_nhanes_choose_weight(weights, "2YR")
-  if (is.na(w)) {
-    stop("YEAR ", year_label, " requires a 2YR weight, but none was provided.")
-  }
+  choice <- .yyds_nhanes_choose_weight(data, year_var, year_label, weights, "2YR")
+  .yyds_nhanes_require_weight(choice, year_label, "2YR")
 
-  list(weight_var = w, represented_years = 2)
+  list(weight_var = choice$weight_var, represented_years = 2, n_valid = choice$n_valid)
 }
 
-.yyds_nhanes_choose_weight <- function(weights, suffix) {
-  hit <- weights[grepl(paste0(suffix, "$"), weights)]
-  if (identical(suffix, "2YR")) {
-    hit <- hit[!grepl("PH2YR$", hit)]
+.yyds_nhanes_choose_weight <- function(data, year_var, year_label, weights, type) {
+  candidates <- weights[grepl(paste0(type, "$"), weights, ignore.case = TRUE)]
+  idx <- as.character(data[[year_var]]) == year_label
+  counts <- vapply(candidates, function(x) {
+    value <- .yyds_nhanes_as_numeric_weight(data[[x]])
+    sum(!is.na(value[idx]) & value[idx] > 0)
+  }, integer(1))
+
+  usable <- counts > 0
+  selected <- if (any(usable)) candidates[which(usable)[which.min(counts[usable])]] else NA_character_
+  selected_n <- if (is.na(selected)) NA_integer_ else unname(counts[[selected]])
+
+  list(
+    type = type,
+    weight_var = selected,
+    n_valid = selected_n,
+    candidates = candidates,
+    counts = counts
+  )
+}
+
+.yyds_nhanes_require_weight <- function(choice, year_label, type) {
+  if (is.na(choice$weight_var)) {
+    .yyds_nhanes_stop_no_weight(year_label, list(choice), required_type = type)
   }
-  if (length(hit) == 0) {
-    NA_character_
+  invisible(choice)
+}
+
+.yyds_nhanes_stop_no_weight <- function(year_label, choices, required_type = NULL) {
+  details <- vapply(choices, function(choice) {
+    if (length(choice$candidates) == 0) {
+      paste0(choice$type, ": 未传入同类候选变量")
+    } else {
+      paste0(
+        choice$type, ": ",
+        paste0(choice$candidates, "=", unname(choice$counts), collapse = ", ")
+      )
+    }
+  }, character(1))
+  type_text <- if (is.null(required_type)) {
+    paste(vapply(choices, `[[`, character(1), "type"), collapse = " 或 ")
   } else {
-    hit[[1]]
+    required_type
   }
+  stop(
+    "YEAR ", year_label, " 没有可用的 ", type_text, " 权重。",
+    "有效权重定义为可转为数值且大于 0；有效数为 0 的候选不会被选择。\n  - ",
+    paste(details, collapse = "\n  - ")
+  )
 }

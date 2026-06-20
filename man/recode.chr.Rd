@@ -5,7 +5,7 @@
 \title{Recode Character or factor Variables
 重新编码字符或因子变量}
 \usage{
-\code{recode.chr(df$var)}
+recode.chr(x)
 }
 \arguments{
 \item{x}{A character or factor vector to be recoded.}
@@ -39,7 +39,7 @@ recode.chr(df$edu)
 # 生成的代码如下,
 
 # recode.chr(df$edu)
-df$edu <- case_when(
+df$edu <- dplyr::case_when(
   df$edu == "college or above" ~ "college or above",
   df$edu == "Below high school" ~ "Below high school",
   df$edu == "High school" ~ "High school",

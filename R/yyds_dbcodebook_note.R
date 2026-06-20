@@ -24,7 +24,7 @@
 #'         }
 #'
 #' @note
-#' 依赖包：openxlsx、tidyverse。若未安装会自动安装。
+#' 依赖包：openxlsx、dplyr、purrr。
 #' ZIP 解压后不会删除原文件。
 #' 若目录下无 ZIP 文件，会提示但不会中断运行。
 #'
@@ -33,6 +33,7 @@
 #' @export
 #'
 #' @examples
+#' \dontrun{
 #' # NHANES 数据库（默认）
 #' yyds_dbcodebook_note()
 #'
@@ -46,6 +47,7 @@
 #' result <- yyds_dbcodebook_note(db = "charls")
 #' db <- result$db
 #' codebook <- result$codebook
+#' }
 yyds_dbcodebook_note <- function(work_dir = NULL, db = c("nhanes", "charls", "elsa")) {
 
   # 匹配数据库类型
@@ -70,19 +72,12 @@ yyds_dbcodebook_note <- function(work_dir = NULL, db = c("nhanes", "charls", "el
   cat("链接键:", id_col, "; ")
   cat("固定变量:", paste(time_cols, collapse = ", "), "\n\n")
 
-  # 自动检查并安装缺失的包
-  required_packages <- c("openxlsx", "tidyverse")
-
-  for (pkg in required_packages) {
-    if (!requireNamespace(pkg, quietly = TRUE)) {
-      cat("📦 正在安装缺失的包:", pkg, "...\n")
-      install.packages(pkg)
-    }
-  }
-
   # 设置当前文件所在位置，为工作路径
+  original_wd <- getwd()
+  on.exit(setwd(original_wd), add = TRUE)
   if (is.null(work_dir)) {
-    setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+    active_path <- if (rstudioapi::isAvailable()) rstudioapi::getActiveDocumentContext()$path else ""
+    if (nzchar(active_path)) setwd(dirname(active_path))
   } else {
     setwd(work_dir)
   }
@@ -102,15 +97,12 @@ yyds_dbcodebook_note <- function(work_dir = NULL, db = c("nhanes", "charls", "el
       folder <- sub("\\.zip$", "", f, ignore.case = TRUE)
 
       # 解压
-      unzip(f, exdir = folder)
+      utils::unzip(f, exdir = folder)
       cat("解压:", f, "\n")
     }
     cat("解压完成！\n\n\n")
   }
 
-
-  # 读取
-  library(openxlsx)
 
   # 获取当前路径下所有子文件夹中包含 "analysis_db" 的 xlsx 文件
   file_list <- list.files(
@@ -130,7 +122,7 @@ yyds_dbcodebook_note <- function(work_dir = NULL, db = c("nhanes", "charls", "el
     file_name <- tools::file_path_sans_ext(basename(file))
 
     # 使用 openxlsx 读取 Excel 文件
-    db_list[[file_name]] <- read.xlsx(file)
+    db_list[[file_name]] <- openxlsx::read.xlsx(file)
     # 计算排除 ID 列和时间变量后的列数
     col_names <- names(db_list[[file_name]])
     cols_excluded <- col_names[!col_names %in% exclude_cols]
@@ -141,10 +133,8 @@ yyds_dbcodebook_note <- function(work_dir = NULL, db = c("nhanes", "charls", "el
 
   cat("共读取", length(db_list), "个 db\n")
 
-  suppressMessages(library(tidyverse))
-
   # 全连接合并所有数据框，使用对应数据库的 ID 键
-  db <- reduce(db_list, full_join, by = id_col)
+  db <- purrr::reduce(db_list, dplyr::full_join, by = id_col)
 
   # 处理时间变量：合并同名的 .x .y .x.x 等后缀列
   for (tc in time_cols) {
@@ -162,7 +152,7 @@ yyds_dbcodebook_note <- function(work_dir = NULL, db = c("nhanes", "charls", "el
 
     if (length(tc_all) > 1) {
       # 用 coalesce 合并
-      db[[tc]] <- reduce(db[, tc_all, drop = FALSE], coalesce)
+      db[[tc]] <- purrr::reduce(db[, tc_all, drop = FALSE], dplyr::coalesce)
 
       # 删除后缀列
       db <- db[, !names(db) %in% suffix_cols]
@@ -199,7 +189,7 @@ yyds_dbcodebook_note <- function(work_dir = NULL, db = c("nhanes", "charls", "el
     file_name <- tools::file_path_sans_ext(basename(file))
 
     # 使用 openxlsx 读取 Excel 文件
-    codebook_list[[file_name]] <- read.xlsx(file)
+    codebook_list[[file_name]] <- openxlsx::read.xlsx(file)
     codebook_list[[file_name]] <- codebook_list[[file_name]][
       !codebook_list[[file_name]]$Variable %in% exclude_cols,
     ]
@@ -211,14 +201,14 @@ yyds_dbcodebook_note <- function(work_dir = NULL, db = c("nhanes", "charls", "el
 
   cat("共读取", length(codebook_list), "个 codebook\n")
 
-  codebook <- bind_rows(codebook_list)
+  codebook <- dplyr::bind_rows(codebook_list)
 
   cat("codebook合并完成\n\n\n")
 
   cat("还没结束, 正在写出, db和codebook\n")
 
-  write.xlsx(db, "db.xlsx")
-  write.xlsx(codebook, "codebook.xlsx")
+  openxlsx::write.xlsx(db, "db.xlsx")
+  openxlsx::write.xlsx(codebook, "codebook.xlsx")
   saveRDS(db,"db.rds")
 
   cat("\n已完成, db（xlsx和rds两个格式, rds读取更快）,\n返回[", getwd(), "] 进行查看\n")

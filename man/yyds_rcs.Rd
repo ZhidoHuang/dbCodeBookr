@@ -39,6 +39,9 @@ yyds_rcs(
 \item{color_dist}{字符串。分布图颜色（默认 \code{"#374E55"}）。}
 
 \item{color_rcs}{字符串。RCS 曲线颜色（默认 \code{"#F79118"}）。}
+
+\item{color_ribbon}{字符串或 \code{NA}。置信区间填充颜色；默认 \code{NA}，由函数
+根据曲线颜色生成透明填充色。}
 }
 \value{
 返回一个包含以下元素的列表（不可见）：

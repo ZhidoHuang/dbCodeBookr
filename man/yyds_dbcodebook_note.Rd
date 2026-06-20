@@ -35,13 +35,14 @@ yyds_dbcodebook_note(work_dir = NULL, db = c("nhanes", "charls", "elsa"))
 }
 }
 \note{
-依赖包：openxlsx、tidyverse。若未安装会自动安装。
+依赖包：openxlsx、dplyr、purrr。
 ZIP 解压后不会删除原文件。
 若目录下无 ZIP 文件，会提示但不会中断运行。
 
 \strong{重要：待读取的文件命名必须包含 "analysis_db" 或 "analysis_codebook"，且为 xlsx 格式。}
 }
 \examples{
+\dontrun{
 # NHANES 数据库（默认）
 yyds_dbcodebook_note()
 
@@ -55,4 +56,5 @@ yyds_dbcodebook_note("D:/ELSA/data", db = "elsa")
 result <- yyds_dbcodebook_note(db = "charls")
 db <- result$db
 codebook <- result$codebook
+}
 }

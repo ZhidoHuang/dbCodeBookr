@@ -27,7 +27,8 @@ yyds_nhanes_design(
 \code{survey.design} 对象。}
 
 \item{weight}{字符向量，候选原始权重变量名，例如
-\code{c("WTMEC4YR", "WTMEC2YR", "WTMECPRP", "WTPH2YR")}。}
+\code{c("WTMEC4YR", "WTMEC2YR", "WTMECPRP", "WTPH2YR")}。变量名匹配
+不区分大小写，但所有传入变量都必须能在 \code{data} 中唯一匹配。}
 
 \item{year_var}{周期标签变量名。默认为 \code{"YEAR"}。期望标签包括
 \code{"1999-2000"}、\code{"2017-2020"}、\code{"2021-2023"} 等。}
@@ -59,12 +60,15 @@ yyds_nhanes_design(
 权重变量，函数只根据 NHANES 周期规则选择和缩放权重：
 \itemize{
 \item 1999-2002 使用可用的 \verb{*4YR} 权重。
-\item 普通完整两年周期使用可用的 \verb{*2YR} 权重，但不把 \verb{*PH2YR} 当作普通
-\verb{*2YR} 权重。
+\item 普通完整两年周期使用可用的 \verb{*2YR} 权重。
 \item 2017-2020 使用可用的 \verb{*PRP} pre-pandemic 权重，并按 3.2 年处理。
-\item 2021-2023 若存在 \code{WTPH2YR}，优先使用 \code{WTPH2YR}；否则再尝试普通
-\verb{*2YR} 权重。
+\item 2021-2023 使用可用的 \verb{*2YR} 权重；\code{WTPH2YR} 与其他 \verb{*2YR}
+权重按相同规则比较，不再固定优先。
 }
+若同一 YEAR 存在多个同类候选权重，函数会分别在 \verb{2YR}、\verb{4YR}、\code{PRP}
+类型内部比较有效数据量。有效权重定义为可转为数值且大于 0；有效数为 0
+的变量不参与选择，其余变量中有效数最少者优先，并列时按 \code{weight} 的传入
+顺序选择。
 对于合并周期，生成权重的计算公式为：
 \code{原始权重 * 该原始权重代表年数 / 分析周期总年数}。
 函数会始终在创建 \code{survey::svydesign()} 前剔除生成权重缺失、为 0 或小于
@@ -79,7 +83,7 @@ des <- yyds_nhanes_design(
   weight = c("WTMEC4YR", "WTMEC2YR", "WTMECPRP", "WTPH2YR")
 )
 
-des_list <- yyds_nhanes_design(
+des_segmented <- yyds_nhanes_design(
   data = dt,
   cycle = c("1999-2002", "2003-2006"),
   weight = c("WTMEC4YR", "WTMEC2YR")

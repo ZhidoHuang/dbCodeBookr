@@ -22,7 +22,7 @@
 #' @param ci_cont `logical`，`TRUE` 展示 Mean (95% CI)（对正态分布连续变量）。
 #' @param ci_nn_cont `logical`，`TRUE` 展示 Median (95% CI)（对非正态分布连续变量）。
 #' @param ci_categ `logical`，分类比例是否显示 95% CI。
-#' @param ci_categ_method `character`，c("logit","beta","likelihood", "asin","xlogit","mean")，具体见 [`svyciprop()`][survey::svyciprop]。
+#' @param ci_categ_method `character`，c("logit","beta","likelihood", "asin","xlogit","mean")，具体见 `survey::svyciprop()`。
 #' @param digits_cont `integer`，小数位数。
 #' @param digits_categ `integer`，比例的小数位数。
 #' @param digits_p `integer`，P 值小数位数。
@@ -35,21 +35,21 @@
 #' @details
 #' **分类变量**
 #'
-#' - 若 `ci_categ = TRUE`，展示 %(95% CI)，用 \code{\link[survey]{svyciprop(..., method = "logit")}} 对每个分组子设计计算；
-#' - 若 `categ_style = "percent_SE"`，展示 %(SE)，用 \code{\link[survey]{svyby(..., svymean, vartype = "se")}} 估计；
-#' - P 值：用 Rao–Scott χ² (design-based F)，通过 \code{\link[survey]{svychisq(..., statistic = "F")}} 实现。
+#' - 若 `ci_categ = TRUE`，展示 %(95% CI)，用 `survey::svyciprop()` 对每个分组子设计计算；
+#' - 若 `categ_style = "percent_SE"`，展示 %(SE)，用 `survey::svyby()` 估计；
+#' - P 值：用 Rao–Scott χ² (design-based F)，通过 `survey::svychisq()` 实现。
 #'
 #' **连续（近似正态）**
 #'
-#' - 默认展示 Mean (SE)，通过 \code{\link[survey]{svyby(..., svymean, vartype = "se")}} 计算；
-#' - 若 `ci_nn_cont = TRUE`，通过 \code{\link[survey]{svyby(..., svymean, vartype = "ci")}}计算；
-#' - P 值：两组用 T检验 \code{\link[survey]{svyttest()}}；三组及以上用 Wald F 检验 \code{\link[survey]{svyglm()}} + \code{\link[survey]{regTermTest()}}。
+#' - 默认展示 Mean (SE)，通过 `survey::svyby()` 计算；
+#' - 若 `ci_nn_cont = TRUE`，通过 `survey::svyby()` 计算；
+#' - P 值：两组用 T 检验 `survey::svyttest()`；三组及以上用 Wald F 检验 `survey::svyglm()` + `survey::regTermTest()`。
 #'
 #' **连续（非正态）**
 #'
-#' - 默认展示 Median \[IQR\]，通过 \code{\link[survey]{svyby(..., svyquantile, quantiles = c(.25,.5,.75))}} 实现；
-#' - 若 `ci_nn_cont = TRUE`，展示 Median (95% CI)，通过 \code{\link[survey]{svyby(..., svyquantile, quantiles =0.5, vartype ="ci")}} 实现；
-#' - P 值：用"wilcoxon" （两组）或"KruskalWallis" （三组及以上）,通过 \code{\link[survey]{svyranktest(..., test = "wilcoxon")}} 实现。
+#' - 默认展示 Median \[IQR\]，通过 `survey::svyby()` 和 `survey::svyquantile()` 实现；
+#' - 若 `ci_nn_cont = TRUE`，展示 Median (95% CI)，通过 `survey::svyby()` 和 `survey::svyquantile()` 实现；
+#' - P 值：用 "wilcoxon"（两组）或 "KruskalWallis"（三组及以上），通过 `survey::svyranktest()` 实现。
 #'
 #'
 #'

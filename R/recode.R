@@ -10,13 +10,12 @@
 #' \code{recode.chr()}直接识别变量类目在RStudio中插入\code{case_when()}代码，
 #' 帮助快速重新编码。
 #'
-#' @usage \code{recode.chr(df$var)}
 #' @param x A character or factor vector to be recoded.
 #' @return Invisibly returns the input vector. Main purpose is side effect of
 #'   generating recode code in RStudio.
 #'
 #'   返回\code{case_when()}结构的重编码代码。
-#' @export
+#' @export recode.chr
 #' @importFrom rstudioapi isAvailable getActiveDocumentContext modifyRange
 #' @importFrom dplyr case_when
 #' @examples
@@ -35,7 +34,7 @@
 #' # 生成的代码如下,
 #'
 #' # recode.chr(df$edu)
-#' df$edu <- case_when(
+#' df$edu <- dplyr::case_when(
 #'   df$edu == "college or above" ~ "college or above",
 #'   df$edu == "Below high school" ~ "Below high school",
 #'   df$edu == "High school" ~ "High school",
@@ -51,7 +50,7 @@ recode.chr <- function(x) {
 
   # 生成代码
   var_name <- deparse(substitute(x))
-  code <- paste0("# recode.chr(",var_name,")\n",var_name, " <- case_when(\n")
+  code <- paste0("# recode.chr(",var_name,")\n",var_name, " <- dplyr::case_when(\n")
   for (val in unique_values) {
     code <- paste0(code, "  ", var_name, " == \"", val, "\" ~ \"", val, "\",\n")
   }
@@ -98,13 +97,12 @@ recode.chr <- function(x) {
 #' \code{recode.chr()}直接识别非数字类目在RStudio中插入\code{case_when()}代码，
 #' 帮助快速重新编码。
 #'
-#' @usage \code{recode.chr(df$var)}
 #' @param x A vector to be converted to numeric
 #' @return Invisibly returns the input vector. Main purpose is side effect of
 #'   generating recode code in RStudio.
 #'
 #'   返回\code{case_when()}结构的重编码代码。
-#' @export
+#' @export recode.num
 #' @importFrom rstudioapi isAvailable getActiveDocumentContext modifyRange
 #' @importFrom dplyr case_when
 #' @examples
@@ -123,11 +121,11 @@ recode.chr <- function(x) {
 #' # 生成的代码如下,
 #'
 #' # recode.num(df$age)
-#' df$age <- case_when(
+#' df$age <- as.numeric(dplyr::case_when(
 #'   df$age == "> 80 year" ~ "> 80 year",
 #'   df$age == "<20 year" ~ "<20 year",
 #'   TRUE ~ df$age
-#' ) %>% as.numeric()
+#' ))
 #'
 recode.num <- function(x) {
   var_name <- deparse(substitute(x))
@@ -169,9 +167,9 @@ recode.num <- function(x) {
   unique_values <- unique(x[is.na(suppressWarnings(as.numeric(x))) & !is.na(x)])
   if (length(unique_values) == 0) return(invisible(x))
 
-  code <- paste0("# recode.num(", var_name, ")\n", var_name, " <- case_when(\n")
+  code <- paste0("# recode.num(", var_name, ")\n", var_name, " <- as.numeric(dplyr::case_when(\n")
   code <- paste0(code, paste0("  ", var_name, " == \"", unique_values, "\" ~ \"", unique_values, "\",", collapse = "\n"), "\n")
-  code <- paste0(code, "  TRUE ~ ", var_name, "\n) %>% as.numeric()")
+  code <- paste0(code, "  TRUE ~ ", var_name, "\n))")
 
   if (rstudioapi::isAvailable()) {
     context <- rstudioapi::getActiveDocumentContext()

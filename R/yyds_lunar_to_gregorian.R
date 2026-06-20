@@ -223,7 +223,6 @@ yyds_lunar_to_gregorian <- function(df,
     cl <- parallel::makeCluster(workers)
     on.exit(parallel::stopCluster(cl), add = TRUE)
 
-    parallel::clusterEvalQ(cl, { library(hongkong) })
     parallel::clusterExport(cl, varlist = c("lunar_to_gregorian_safe", "ignore_leap"), envir = environment())
 
     if (isTRUE(load_balance)) {
