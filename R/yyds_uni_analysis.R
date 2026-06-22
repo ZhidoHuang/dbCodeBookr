@@ -214,6 +214,7 @@ yyds_uni_analysis <- function(data = NULL, vars, outcome,
       dplyr::bind_cols(VARS = var, tab)
     })
 
+    results_svy <- results_svy[, setdiff(names(results_svy), "VARS"), drop = FALSE]
     return(results_svy)
   }
 
