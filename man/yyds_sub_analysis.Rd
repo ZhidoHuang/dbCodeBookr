@@ -65,7 +65,9 @@ yyds_sub_analysis(
 \item 若指定 \code{time}，则进行 Cox 生存分析。
 \item 若指定 \code{family_type}，则按指定族类进行广义线性模型分析。
 \item \code{time}和\code{family_type}不能同时出现。
-\item 交互作用P值计算使用 \code{yyds_pforinteraction()} 函数。
+\item 普通模型的交互作用 P 值通过 \code{yyds_pforinteraction()} 进行 LRT；复杂抽样
+design 模型通过 \code{survey::regTermTest()} 进行 Wald 检验。两种分支采用相同的
+控制台提示、P 值格式和结果表位置。
 \item \code{design} 加权分支输出与普通分支一致的 \code{total_event_N} 和
 \verb{Events, n/N} 列；两者均按实际进入 \code{svycoxph()} / \code{svyglm()}
 的 complete-case 模型样本统计。

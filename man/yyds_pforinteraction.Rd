@@ -4,7 +4,7 @@
 \alias{yyds_pforinteraction}
 \title{计算回归模型中的交互作用P值}
 \usage{
-yyds_pforinteraction(fit, var1, var2)
+yyds_pforinteraction(fit, var1, var2, data = NULL, design = NULL)
 }
 \arguments{
 \item{fit}{已拟合的回归模型，支持的模型类型包括：\code{"glm"}、\code{"lm"}、\code{"coxph"}、\code{"svyglm"}、\code{"svycoxph"}}
@@ -12,6 +12,11 @@ yyds_pforinteraction(fit, var1, var2)
 \item{var1}{字符串，第一个参与交互项的变量名}
 
 \item{var2}{字符串，第二个参与交互项的变量名}
+
+\item{data}{普通模型重拟合使用的数据框。用于 \code{glm}、\code{lm} 或 \code{coxph}，与
+\code{design} 二选一。}
+
+\item{design}{复杂抽样设计对象。用于 \code{svyglm} 或 \code{svycoxph}，与 \code{data} 二选一。}
 }
 \value{
 返回交互作用P值（字符型），（保留4位小数，小于0.001时显示为 "<0.001"）。
@@ -54,7 +59,7 @@ print(test_result)
 
 # 使用自定义函数进行交互项检验
 fit <- svycoxph(Surv(time, status) ~ var1 + var2 + age + sex, design = design)
-yyds_pforinteraction(fit, "var1", "var2")
+yyds_pforinteraction(fit, "var1", "var2", design = design)
 
 # glm模型
 fit <- glm(status ~ var1 + var2 + age + sex, data = df, family = binomial())
@@ -62,6 +67,6 @@ fit_inter <- glm(status ~ var1 * var2 + age + sex, data = df, family = binomial(
 anova(fit, fit_inter, test = "Chisq")
 
 # 使用自定义函数进行交互项检验
-yyds_pforinteraction(fit, "var1", "var2")
+yyds_pforinteraction(fit, "var1", "var2", data = df)
 
 }

@@ -28,7 +28,9 @@
 #'   - 若指定 `time`，则进行 Cox 生存分析。
 #'   - 若指定 `family_type`，则按指定族类进行广义线性模型分析。
 #'   - `time`和`family_type`不能同时出现。
-#'   - 交互作用P值计算使用 `yyds_pforinteraction()` 函数。
+#'   - 普通模型的交互作用 P 值通过 `yyds_pforinteraction()` 进行 LRT；复杂抽样
+#'     design 模型通过 `survey::regTermTest()` 进行 Wald 检验。两种分支采用相同的
+#'     控制台提示、P 值格式和结果表位置。
 #'   - `design` 加权分支输出与普通分支一致的 `total_event_N` 和
 #'     `Events, n/N` 列；两者均按实际进入 `svycoxph()` / `svyglm()`
 #'     的 complete-case 模型样本统计。
@@ -146,15 +148,6 @@ yyds_sub_analysis <- function(data = NULL,
     stop("\n Either 'time' or 'family_type' must be provided.")
   } else if (!is.null(time) && !is.null(family_type)) {
     stop("\n 'time' and 'family_type' cannot both be provided.")
-  }
-
-  fmt_p <- function(p, digits = 3) {
-    if (length(p) == 0 || is.na(p) || !is.finite(p)) return(NA_character_)
-    if (p < 10^(-digits)) {
-      paste0("<", sprintf(paste0("%.", digits, "f"), 10^(-digits)))
-    } else {
-      sprintf(paste0("%.", digits, "f"), p)
-    }
   }
 
   bt <- function(x) paste0("`", x, "`")
@@ -386,37 +379,52 @@ yyds_sub_analysis <- function(data = NULL,
     res_all <- list()
 
     for (sub in stratify_vars) {
-      levels_sub <- sort(unique(na.omit(as.character(design$variables[[sub]]))))
-      p_interaction <- NA_real_
+      for (v in unique(c(exposure, sub))) {
+        if (is.character(design$variables[[v]])) {
+          design$variables[[v]] <- as.factor(design$variables[[v]])
+          message("Note: Variable '", v, "' converted from character to factor")
+        }
+      }
 
+      levels_sub <- sort(unique(na.omit(as.character(design$variables[[sub]]))))
       adjust_interaction <- setdiff(adjust_vars, sub)
-      rhs_interaction <- paste0(
-        bt(exposure), " * ", bt(sub),
+      rhs_base <- paste0(
+        bt(exposure), " + ", bt(sub),
         if (length(adjust_interaction) > 0) {
           paste0(" + ", paste(bt(adjust_interaction), collapse = " + "))
         } else ""
       )
-      f_interaction <- if (!is.null(time)) {
-        as.formula(paste0("Surv(", bt(time), ", ", bt(status), ") ~ ", rhs_interaction))
+      f_base <- if (!is.null(time)) {
+        as.formula(paste0("Surv(", bt(time), ", ", bt(status), ") ~ ", rhs_base))
       } else {
-        as.formula(paste0(bt(status), " ~ ", rhs_interaction))
+        as.formula(paste0(bt(status), " ~ ", rhs_base))
       }
 
-      fit_interaction <- tryCatch({
+      fit_base <- tryCatch({
         if (!is.null(time)) {
-          survey::svycoxph(f_interaction, design = design)
+          survey::svycoxph(f_base, design = design)
         } else {
-          survey::svyglm(f_interaction, design = design, family = family_obj)
+          survey::svyglm(f_base, design = design, family = family_obj)
         }
       }, error = function(e) NULL)
 
-      if (!is.null(fit_interaction)) {
-        p_interaction <- tryCatch({
-          as.numeric(survey::regTermTest(
-            fit_interaction,
-            as.formula(paste0("~", bt(exposure), ":", bt(sub)))
-          )$p)
-        }, error = function(e) NA_real_)
+      if (is.null(fit_base)) {
+        cat("Interaction term: ", exposure, ":", sub, " \n", sep = "")
+        cat("Wald test p-value for interaction: NA\n")
+        p_interaction_fmt <- "NA"
+      } else {
+        p_interaction_fmt <- tryCatch(
+          yyds_pforinteraction(
+            fit_base,
+            exposure,
+            sub,
+            design = design
+          ),
+          error = function(e) {
+            message("Interaction test failed: ", e$message)
+            "NA"
+          }
+        )
       }
 
       res_sub <- lapply(levels_sub, function(lv) {
@@ -465,12 +473,15 @@ yyds_sub_analysis <- function(data = NULL,
         out[[effect_num_col]] <- if (effect_num_col %in% names(tab)) tab[[effect_num_col]] else NA_real_
         out[["lower"]] <- tab[["lower"]]
         out[["upper"]] <- tab[["upper"]]
-        out[["p_interaction"]] <- fmt_p(p_interaction)
+        out[["p_interaction"]] <- NA_character_
         out[["adjusted"]] <- paste(adjust_lv, collapse = "+")
         out
       })
 
       res_all[[sub]] <- dplyr::bind_rows(res_sub)
+      if (nrow(res_all[[sub]]) > 0) {
+        res_all[[sub]]$p_interaction[[1]] <- p_interaction_fmt
+      }
     }
 
     combined_results <- dplyr::bind_rows(res_all, .id = "Stratum")
@@ -629,9 +640,12 @@ yyds_sub_analysis <- function(data = NULL,
     }
 
     p_interaction <- if (!is.null(model_fit2)) {
-      tryCatch(yyds_pforinteraction(model_fit2, exposure, sub), error = function(e) NA_real_)
+      tryCatch(
+        yyds_pforinteraction(model_fit2, exposure, sub, data = data_sub),
+        error = function(e) "NA"
+      )
     } else {
-      NA_real_
+      "NA"
     }
 
     results[1,10] <- p_interaction
