@@ -52,8 +52,7 @@ yyds_sub_analysis(
 \item{ticks_at}{X轴刻度点，用于控制森林图的坐标刻度。}
 }
 \value{
-返回格式化后的回归结果汇总表；森林图对象保存在
-\code{attr(result, "forest_plot")} 中。
+返回一个列表：\code{table} 为格式化后的回归结果汇总表，\code{plot} 为森林图对象。
 }
 \description{
 \itemize{

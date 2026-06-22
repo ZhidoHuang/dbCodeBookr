@@ -22,8 +22,7 @@
 #' @param xlim X轴范围，用于控制森林图的显示范围。
 #' @param ticks_at X轴刻度点，用于控制森林图的坐标刻度。
 #'
-#' @return 返回格式化后的回归结果汇总表；森林图对象保存在
-#'   `attr(result, "forest_plot")` 中。
+#' @return 返回一个列表：`table` 为格式化后的回归结果汇总表，`plot` 为森林图对象。
 #'
 #' @details
 #'   - 若指定 `time`，则进行 Cox 生存分析。
@@ -522,10 +521,9 @@ yyds_sub_analysis <- function(data = NULL,
       dplyr::ungroup()
 
     p <- make_forest_plot(dt_plot, design$variables[[exposure]])
-    attr(result_table, "forest_plot") <- p
     draw_forest(p)
 
-    return(invisible(result_table))
+    return(invisible(list(table = result_table, plot = p)))
   }
 
   if (is.null(data)) {
@@ -703,8 +701,7 @@ yyds_sub_analysis <- function(data = NULL,
 
 
   p <- make_forest_plot(dt_plot, data[[exposure]])
-  attr(result_table, "forest_plot") <- p
   draw_forest(p)
 
-  return(invisible(result_table))
+  return(invisible(list(table = result_table, plot = p)))
 }
