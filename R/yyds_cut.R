@@ -39,6 +39,12 @@
 yyds_cut <- function(data = NULL, vars, value = NULL, probs = NULL, ncut = NULL,
                      suffix = "q", right = TRUE, verbose = TRUE, file = NULL,
                      design = NULL) {
+  # 兼容 yyds_cut(design = des, c("x", "y"), ...) 的位置参数写法。
+  if (!is.null(design) && missing(vars) && is.character(data)) {
+    vars <- data
+    data <- NULL
+  }
+
   if (is.null(data) == is.null(design)) {
     stop("data 和 design 必须且只能提供一个。")
   }
