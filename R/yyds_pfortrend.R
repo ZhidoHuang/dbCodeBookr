@@ -8,7 +8,9 @@
 #'   \code{svyglm} 和 \code{svycoxph}。
 #' @param var 变量名，应为具有等级顺序的变量（如有序因子或整数型）。
 #' @param p_digits P值保留的小数位数，默认4。
-#' @param verbose 逻辑值，是否打印 p for trend，默认 TRUE。
+#' @param verbose 逻辑值，是否打印 p for trend，默认 `FALSE`。
+#' @details `var` 的非缺失唯一值数量大于 20 时视为连续变量，不进行趋势检验，
+#'   直接返回 `"-"`。唯一值数量为 3 至 20 时按有序分组变量进行趋势检验。
 #'
 #' @return 返回趋势性 P 值（字符型）。
 #' @export
@@ -93,7 +95,7 @@
 #' # 使用函数计算
 #' yyds_pfortrend(fit_svycox, "exposure")
 #'
-yyds_pfortrend <- function(fit, var, p_digits = 4, verbose = TRUE) {
+yyds_pfortrend <- function(fit, var, p_digits = 4, verbose = FALSE) {
   # 支持的模型类型
   supported_models <- c("coxph", "glm", "lm", "svyglm", "svycoxph")
   if (!inherits(fit, supported_models)) {
@@ -125,6 +127,12 @@ yyds_pfortrend <- function(fit, var, p_digits = 4, verbose = TRUE) {
   n_unique <- length(unique_vals)
   if (n_unique <= 2) {
     return(NA)
+  }
+  if (n_unique > 20) {
+    if (isTRUE(verbose)) {
+      cat("p for trend: -\n")
+    }
+    return(invisible("-"))
   }
 
   fmt_p <- function(p) {

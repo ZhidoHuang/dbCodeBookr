@@ -4,7 +4,7 @@
 \alias{yyds_pfortrend}
 \title{计算变量的趋势性 P 值}
 \usage{
-yyds_pfortrend(fit, var, p_digits = 4, verbose = TRUE)
+yyds_pfortrend(fit, var, p_digits = 4, verbose = FALSE)
 }
 \arguments{
 \item{fit}{回归模型对象，支持 \code{coxph}、\code{glm}、\code{lm}、
@@ -14,7 +14,7 @@ yyds_pfortrend(fit, var, p_digits = 4, verbose = TRUE)
 
 \item{p_digits}{P值保留的小数位数，默认4。}
 
-\item{verbose}{逻辑值，是否打印 p for trend，默认 TRUE。}
+\item{verbose}{逻辑值，是否打印 p for trend，默认 \code{FALSE}。}
 }
 \value{
 返回趋势性 P 值（字符型）。
@@ -22,6 +22,10 @@ yyds_pfortrend(fit, var, p_digits = 4, verbose = TRUE)
 \description{
 该函数用于计算回归模型中指定变量作为连续变量时的趋势P值，
 支持多种回归模型类型（线性、逻辑、Cox等）。
+}
+\details{
+\code{var} 的非缺失唯一值数量大于 20 时视为连续变量，不进行趋势检验，
+直接返回 \code{"-"}。唯一值数量为 3 至 20 时按有序分组变量进行趋势检验。
 }
 \examples{
 library(survival)
