@@ -427,7 +427,7 @@ yyds_km <- function(
       fit <- survey::svykm(
         km_formula,
         design = design_use,
-        se = TRUE
+        se = FALSE
       )
 
       if (inherits(fit, "svykmlist")) {
@@ -507,7 +507,8 @@ yyds_km <- function(
 
       fit <- survival::survfit(
         km_formula,
-        data = plot_dat
+        data = plot_dat,
+        se.fit = FALSE
       )
 
       km_sum <- summary(fit)
