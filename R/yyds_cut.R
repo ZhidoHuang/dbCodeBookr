@@ -3,7 +3,8 @@
 #' 本函数用于对数据框中的变量进行分组切割，根据指定的断点或分位数，将变量划分为多个类别。
 #' 支持通过 `value`、`probs` 或 `ncut` 参数指定切割标准。
 #'
-#' @param data 数据框，包含需要切割的变量。
+#' @param data 数据框，包含需要切割的变量。与 `design` 二选一。
+#' @param design `survey.design` 或 `svyrep.design` 对象。与 `data` 二选一。
 #' @param vars 需要进行切割的变量名称（字符向量）。
 #' @param value 指定自定义的切割点。如果提供，则忽略 `probs` 和 `ncut` 参数。
 #' @param probs 分位数，指定根据分位数进行切割（例如 `probs = c(0.25, 0.5, 0.75)`）。
@@ -13,8 +14,13 @@
 #' @param verbose 是否在控制台输出详细信息，默认为 `TRUE`。
 #' @param file 输出文本文件名或路径。默认为 `NULL`，不输出文件；例如
 #'   `file = "四分位"` 会生成 `四分位.txt`。若未以 `.txt` 结尾，函数会自动补全。
+#' @details 使用 `data` 时，`probs` 和 `ncut` 的断点由普通 `quantile()` 计算；
+#'   使用 `design` 时，断点由 `survey::svyquantile()` 计算，会纳入抽样权重及
+#'   design 的复杂抽样结构。`value` 是用户指定的固定断点，不进行加权计算。
 #'
-#' @return 返回带有新切割变量的数据框。新变量名为原变量名加上 `suffix` 后缀。
+#' @return 输入为数据框时，返回带有新切割变量的数据框；输入为
+#'   `survey.design`/`svyrep.design` 时，返回在 `$variables` 中增加新变量的同类
+#'   design 对象。新变量名为原变量名加上 `suffix` 后缀。
 #'
 #' @examples
 #' \dontrun{
@@ -30,8 +36,26 @@
 #' }
 #'
 #' @export
-yyds_cut <- function(data, vars, value = NULL, probs = NULL, ncut = NULL,
-                     suffix = "q", right = TRUE, verbose = TRUE, file = NULL) {
+yyds_cut <- function(data = NULL, vars, value = NULL, probs = NULL, ncut = NULL,
+                     suffix = "q", right = TRUE, verbose = TRUE, file = NULL,
+                     design = NULL) {
+  if (is.null(data) == is.null(design)) {
+    stop("data 和 design 必须且只能提供一个。")
+  }
+
+  is_design <- !is.null(design)
+  if (is_design) {
+    if (!inherits(design, "survey.design") && !inherits(design, "svyrep.design")) {
+      stop("design 必须是 survey.design 或 svyrep.design 对象。")
+    }
+    data <- design$variables
+    if (!is.data.frame(data)) {
+      stop("design 对象中未找到可用的 $variables 数据框。")
+    }
+  } else if (!is.data.frame(data)) {
+    stop("data 必须是数据框。")
+  }
+
   if (!is.null(file)) {
     if (!is.character(file) || length(file) != 1L || is.na(file) || !nzchar(trimws(file))) {
       stop("file 必须为 NULL 或单个非空字符路径。")
@@ -50,6 +74,21 @@ yyds_cut <- function(data, vars, value = NULL, probs = NULL, ncut = NULL,
     if (!is.null(file)) {
       file_output <<- c(file_output, lines)
     }
+  }
+
+  get_quantiles <- function(var, probs) {
+    if (!is_design) {
+      return(stats::quantile(data[[var]], probs = probs, na.rm = TRUE))
+    }
+
+    result <- survey::svyquantile(
+      stats::reformulate(var),
+      design = design,
+      quantiles = probs,
+      na.rm = TRUE,
+      ci = FALSE
+    )
+    as.numeric(result[[1]])
   }
 
   for (var in vars) {
@@ -76,7 +115,7 @@ yyds_cut <- function(data, vars, value = NULL, probs = NULL, ncut = NULL,
           )
         }
       } else if (!is.null(probs)) {
-        quantiles <- quantile(vec, probs = probs, na.rm = TRUE)
+        quantiles <- get_quantiles(var, probs)
         cuts <- unique(quantiles)
         breaks <- c(-Inf, cuts, Inf)
         pcts <- round(100 * c(0, probs, 1))
@@ -89,7 +128,7 @@ yyds_cut <- function(data, vars, value = NULL, probs = NULL, ncut = NULL,
         }
       } else if (!is.null(ncut)) {
         probs_seq <- seq(0, 1, length.out = ncut + 1)
-        cuts <- quantile(vec, probs = probs_seq[-c(1, length(probs_seq))], na.rm = TRUE)
+        cuts <- get_quantiles(var, probs_seq[-c(1, length(probs_seq))])
         cuts <- unique(cuts)
         breaks <- c(-Inf, cuts, Inf)
 
@@ -105,9 +144,16 @@ yyds_cut <- function(data, vars, value = NULL, probs = NULL, ncut = NULL,
                                  include.lowest = TRUE, right = right)
       data[[new_varname]] <- as.factor(data[[new_varname]])
 
+      break_label <- if (!is.null(value)) {
+        "断点（指定）"
+      } else if (is_design) {
+        "断点（复杂抽样加权）"
+      } else {
+        "断点"
+      }
       output <- c(
         paste0("\n[", var, "] → ", new_varname),
-        paste0("断点: ", paste(round(breaks, 4), collapse = ", ")),
+        paste0(break_label, ": ", paste(round(breaks, 4), collapse = ", ")),
         paste0("标签: ", paste(labels, collapse = " | ")),
         capture.output(print(table(data[[new_varname]])))
       )
@@ -123,6 +169,11 @@ yyds_cut <- function(data, vars, value = NULL, probs = NULL, ncut = NULL,
 
   if (!is.null(file)) {
     writeLines(file_output, con = file, useBytes = TRUE)
+  }
+
+  if (is_design) {
+    design$variables <- data
+    return(design)
   }
 
   return(data)

@@ -5,7 +5,7 @@
 \title{便捷切割函数}
 \usage{
 yyds_cut(
-  data,
+  data = NULL,
   vars,
   value = NULL,
   probs = NULL,
@@ -13,11 +13,12 @@ yyds_cut(
   suffix = "q",
   right = TRUE,
   verbose = TRUE,
-  file = NULL
+  file = NULL,
+  design = NULL
 )
 }
 \arguments{
-\item{data}{数据框，包含需要切割的变量。}
+\item{data}{数据框，包含需要切割的变量。与 \code{design} 二选一。}
 
 \item{vars}{需要进行切割的变量名称（字符向量）。}
 
@@ -35,13 +36,22 @@ yyds_cut(
 
 \item{file}{输出文本文件名或路径。默认为 \code{NULL}，不输出文件；例如
 \code{file = "四分位"} 会生成 \code{四分位.txt}。若未以 \code{.txt} 结尾，函数会自动补全。}
+
+\item{design}{\code{survey.design} 或 \code{svyrep.design} 对象。与 \code{data} 二选一。}
 }
 \value{
-返回带有新切割变量的数据框。新变量名为原变量名加上 \code{suffix} 后缀。
+输入为数据框时，返回带有新切割变量的数据框；输入为
+\code{survey.design}/\code{svyrep.design} 时，返回在 \verb{$variables} 中增加新变量的同类
+design 对象。新变量名为原变量名加上 \code{suffix} 后缀。
 }
 \description{
 本函数用于对数据框中的变量进行分组切割，根据指定的断点或分位数，将变量划分为多个类别。
 支持通过 \code{value}、\code{probs} 或 \code{ncut} 参数指定切割标准。
+}
+\details{
+使用 \code{data} 时，\code{probs} 和 \code{ncut} 的断点由普通 \code{quantile()} 计算；
+使用 \code{design} 时，断点由 \code{survey::svyquantile()} 计算，会纳入抽样权重及
+design 的复杂抽样结构。\code{value} 是用户指定的固定断点，不进行加权计算。
 }
 \examples{
 \dontrun{
