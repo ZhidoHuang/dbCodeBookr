@@ -91,15 +91,25 @@ yyds_FGR_table <- function(fg_model) {
 
   rownames(fg_results) <- NULL
 
-  # 提取公式中的变量
-  textvar <- fg_model$call$formula[[3]]
-  ref_vars <- trimws(unlist(strsplit(as.character(textvar), "\\+")))
-
-  # 移除fg_results中已有的变量
-  ref_vars <- ref_vars[!ref_vars %in% c(fg_results$Variable, "")]
+  # 提取动态或直接书写的公式
+  formula_fg <- tryCatch(
+    eval(fg_model$call$formula, envir = parent.frame()),
+    error = function(e) fg_model$call$formula
+  )
+  if (!inherits(formula_fg, "formula")) {
+    formula_fg <- stats::formula(fg_model$terms)
+  }
 
   # 获取原始数据集
-  dt_cox <- eval(fg_model$call$data)
+  dt_cox <- eval(fg_model$call$data, envir = parent.frame())
+
+  # 仅为分类变量添加参照组
+  ref_vars <- attr(stats::terms(formula_fg), "term.labels")
+  ref_vars <- ref_vars[vapply(
+    ref_vars,
+    function(var) is.factor(dt_cox[[var]]) || is.character(dt_cox[[var]]),
+    logical(1)
+  )]
 
   # 为每个分类变量添加参照组
   for (var in ref_vars) {
@@ -138,13 +148,8 @@ yyds_FGR_table <- function(fg_model) {
     }
   }
 
-  # 提取终点
-  outcome <- tryCatch({
-    fg_model$call$formula[[2]][[3]][[2]]
-  }, error = function(e) {
-    # 出现错误时执行此部分代码，返回fg_model$call$formula[[2]][[3]]
-    fg_model$call$formula[[2]][[3]]
-  })
+  # 提取终点；Hist(time, event) 中第二个变量为事件变量
+  outcome <- all.vars(formula_fg[[2]])[2]
 
   # 计算分类变量的event
   event_all_list <- sapply(ref_vars, function(var) {
@@ -156,6 +161,9 @@ yyds_FGR_table <- function(fg_model) {
     return(event_fg_wide)
   }, simplify = FALSE)
   event_all <- bind_rows(event_all_list)
+  if (length(ref_vars) == 0) {
+    event_all <- data.frame(Var1 = character(), event = character())
+  }
 
   # 计算总数，给连续变量
   outcome_table <- table(dt_cox[[outcome]])
