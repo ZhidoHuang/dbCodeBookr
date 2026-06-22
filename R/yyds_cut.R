@@ -11,6 +11,8 @@
 #' @param suffix 新生成的变量名称的后缀，默认为 "q"（如变量 `age` 切割后生成变量 `ageq`）。
 #' @param right 是否将区间右端点包含在内，默认为 `TRUE`，即(a,b]。
 #' @param verbose 是否在控制台输出详细信息，默认为 `TRUE`。
+#' @param file 输出文本文件名或路径。默认为 `NULL`，不输出文件；例如
+#'   `file = "四分位"` 会生成 `四分位.txt`。若未以 `.txt` 结尾，函数会自动补全。
 #'
 #' @return 返回带有新切割变量的数据框。新变量名为原变量名加上 `suffix` 后缀。
 #'
@@ -29,7 +31,27 @@
 #'
 #' @export
 yyds_cut <- function(data, vars, value = NULL, probs = NULL, ncut = NULL,
-                     suffix = "q", right = TRUE, verbose = TRUE) {
+                     suffix = "q", right = TRUE, verbose = TRUE, file = NULL) {
+  if (!is.null(file)) {
+    if (!is.character(file) || length(file) != 1L || is.na(file) || !nzchar(trimws(file))) {
+      stop("file 必须为 NULL 或单个非空字符路径。")
+    }
+    file <- trimws(file)
+    if (!grepl("\\.txt$", file, ignore.case = TRUE)) {
+      file <- paste0(file, ".txt")
+    }
+  }
+
+  file_output <- character()
+  emit_output <- function(lines, show_console = verbose) {
+    if (isTRUE(show_console)) {
+      cat(paste(lines, collapse = "\n"), "\n", sep = "")
+    }
+    if (!is.null(file)) {
+      file_output <<- c(file_output, lines)
+    }
+  }
+
   for (var in vars) {
     tryCatch({
       vec <- data[[var]]
@@ -83,17 +105,24 @@ yyds_cut <- function(data, vars, value = NULL, probs = NULL, ncut = NULL,
                                  include.lowest = TRUE, right = right)
       data[[new_varname]] <- as.factor(data[[new_varname]])
 
-      # 控制台输出（改为 cat）
-      if (verbose) {
-        cat("\n[", var, "] → ", new_varname, "\n", sep = "")
-        cat("断点: ", paste(round(breaks, 4), collapse = ", "), "\n", sep = "")
-        cat("标签: ", paste(labels, collapse = " | "), "\n", sep = "")
-        print(table(data[[new_varname]]))
-      }
+      output <- c(
+        paste0("\n[", var, "] → ", new_varname),
+        paste0("断点: ", paste(round(breaks, 4), collapse = ", ")),
+        paste0("标签: ", paste(labels, collapse = " | ")),
+        capture.output(print(table(data[[new_varname]])))
+      )
+      emit_output(output)
 
     }, error = function(e) {
-      cat("Error with variable", var, ":", e$message, "\n")
+      emit_output(
+        paste0("Error with variable ", var, ": ", e$message),
+        show_console = TRUE
+      )
     })
+  }
+
+  if (!is.null(file)) {
+    writeLines(file_output, con = file, useBytes = TRUE)
   }
 
   return(data)

@@ -12,7 +12,8 @@ yyds_cut(
   ncut = NULL,
   suffix = "q",
   right = TRUE,
-  verbose = TRUE
+  verbose = TRUE,
+  file = NULL
 )
 }
 \arguments{
@@ -31,6 +32,9 @@ yyds_cut(
 \item{right}{是否将区间右端点包含在内，默认为 \code{TRUE}，即(a,b]。}
 
 \item{verbose}{是否在控制台输出详细信息，默认为 \code{TRUE}。}
+
+\item{file}{输出文本文件名或路径。默认为 \code{NULL}，不输出文件；例如
+\code{file = "四分位"} 会生成 \code{四分位.txt}。若未以 \code{.txt} 结尾，函数会自动补全。}
 }
 \value{
 返回带有新切割变量的数据框。新变量名为原变量名加上 \code{suffix} 后缀。
