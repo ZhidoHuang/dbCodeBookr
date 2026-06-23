@@ -4,6 +4,10 @@
 #' 自动提取HR（及其95%置信区间）、P值，并输出结构化的结果表。对于因子变量，还会自动添加参照组行并计算事件发生数。
 #'
 #' @param fg_model 使用 `FGR()` 拟合得到的 Fine-Gray 模型对象。
+#' @param effect_digits 效应值和置信区间的小数位数。默认 2。
+#' @param p_digits P 值的小数位数。默认 3。
+#' @param full 是否返回完整数值列（hr、lower、upper）。默认 TRUE。
+#' @param event 是否返回事件数列。默认 TRUE。
 #'
 #' @return 返回一个数据框，包含以下列：
 #' \describe{
@@ -57,7 +61,11 @@
 #' }
 #'
 #' @export
-yyds_FGR_table <- function(fg_model) {
+yyds_FGR_table <- function(fg_model,
+                           effect_digits = 2,
+                           p_digits = 3,
+                           full = TRUE,
+                           event = TRUE) {
 
   # 提取模型摘要
   fg_summary <- summary(fg_model)
@@ -65,16 +73,20 @@ yyds_FGR_table <- function(fg_model) {
   conf_int_data <- fg_summary$conf.int
 
   # 计算HR (95% CI) 和 P Value
+  effect_format <- paste0("%.", effect_digits, "f")
+  p_cut <- 10^(-p_digits)
+  p_cut_text <- formatC(p_cut, digits = p_digits, format = "f")
+  p_num <- as.numeric(coef_data[, "p-value"])
   hr_ci <- paste0(
-    sprintf("%.2f", conf_int_data[, "exp(coef)"]), " (",
-    sprintf("%.2f", conf_int_data[, "2.5%"]), "-",
-    sprintf("%.2f", conf_int_data[, "97.5%"]), ")"
+    sprintf(effect_format, conf_int_data[, "exp(coef)"]), " (",
+    sprintf(effect_format, conf_int_data[, "2.5%"]), "-",
+    sprintf(effect_format, conf_int_data[, "97.5%"]), ")"
   )
 
   p_values <- ifelse(
-    coef_data[, "p-value"] < 0.001,
-    "<0.001",
-    formatC(coef_data[, "p-value"], digits = 3, format = "f", zero.print = TRUE)
+    p_num < p_cut,
+    paste0("<", p_cut_text),
+    formatC(p_num, digits = p_digits, format = "f", zero.print = TRUE)
   )
 
   # 创建结果数据框
@@ -82,9 +94,9 @@ yyds_FGR_table <- function(fg_model) {
     Variable = rownames(coef_data),
     `HR (95% CI)` = hr_ci,
     `P Value` = p_values,
-    hr = sprintf("%.2f", conf_int_data[, "exp(coef)"]),
-    lower = sprintf("%.2f", conf_int_data[, "2.5%"]),
-    upper = sprintf("%.2f", conf_int_data[, "97.5%"]),
+    hr = round(conf_int_data[, "exp(coef)"], effect_digits),
+    lower = round(conf_int_data[, "2.5%"], effect_digits),
+    upper = round(conf_int_data[, "97.5%"], effect_digits),
     stringsAsFactors = FALSE,
     check.names = FALSE
   )
@@ -128,9 +140,9 @@ yyds_FGR_table <- function(fg_model) {
       Variable = c(var, paste0("xx",var,levels[1])),
       `HR (95% CI)` = c("", "ref"),
       `P Value` = c("", "-"),
-      hr = c("","1.00"),
-      lower = c("","1.00"),
-      upper = c("","1.00"),
+      hr = c(NA_real_, 1),
+      lower = c(NA_real_, 1),
+      upper = c(NA_real_, 1),
       stringsAsFactors = FALSE,
       check.names = FALSE
     )
@@ -172,21 +184,29 @@ yyds_FGR_table <- function(fg_model) {
   # 链接计算好的事件
   fg_results <-left_join(fg_results, event_all, by = c("Variable" = "Var1"))
 
-  fg_results$event <- ifelse(is.na(fg_results$event)&fg_results$hr!="", event_tatol, fg_results$event)
+  fg_results$event <- ifelse(is.na(fg_results$event) & !is.na(fg_results$hr),
+                             event_tatol,
+                             fg_results$event)
 
   # 重新改变量名
   for (var in ref_vars) {
     fg_results$Variable <- gsub(paste0("xx",var), "  ",fg_results$Variable)
   }
 
-  fg_results$Significance <- suppressWarnings(ifelse(fg_results$`P Value` == "<0.001", "***",
-                                                     ifelse(as.numeric(fg_results$`P Value`) < 0.01, "**",
-                                                            ifelse(as.numeric(fg_results$`P Value`) < 0.05, "*", "")))
-  )
+  p_value_num <- suppressWarnings(as.numeric(gsub("^<", "", fg_results$`P Value`)))
+  fg_results$Significance <- ifelse(fg_results$`P Value` == paste0("<", p_cut_text), "***",
+                                    ifelse(p_value_num < 0.01, "**",
+                                           ifelse(p_value_num < 0.05, "*", "")))
 
-
-  fg_results <- fg_results[,c("Variable","event","HR (95% CI)","P Value","Significance","hr","lower","upper")]
-  colnames(fg_results) <- c("Variable","Events, n/N","HR (95% CI)","p-value","sign","HR","Lower","Upper")
+  output_cols <- c("Variable",
+                   if (event) "event",
+                   "HR (95% CI)", "P Value", "Significance",
+                   if (full) c("hr", "lower", "upper"))
+  fg_results <- fg_results[, output_cols, drop = FALSE]
+  colnames(fg_results) <- c("Variable",
+                            if (event) "Events, n/N",
+                            "HR (95% CI)", "p-value", "sign",
+                            if (full) c("hr", "lower", "upper"))
 
   return(fg_results)
 }

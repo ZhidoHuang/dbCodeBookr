@@ -4,10 +4,24 @@
 \alias{yyds_FGR_table}
 \title{提取和结构化 Fine-Gray 模型结果表}
 \usage{
-yyds_FGR_table(fg_model)
+yyds_FGR_table(
+  fg_model,
+  effect_digits = 2,
+  p_digits = 3,
+  full = TRUE,
+  event = TRUE
+)
 }
 \arguments{
 \item{fg_model}{使用 \code{FGR()} 拟合得到的 Fine-Gray 模型对象。}
+
+\item{effect_digits}{效应值和置信区间的小数位数。默认 2。}
+
+\item{p_digits}{P 值的小数位数。默认 3。}
+
+\item{full}{是否返回完整数值列（hr、lower、upper）。默认 TRUE。}
+
+\item{event}{是否返回事件数列。默认 TRUE。}
 }
 \value{
 返回一个数据框，包含以下列：
