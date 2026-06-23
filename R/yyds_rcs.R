@@ -61,17 +61,6 @@ yyds_rcs <- function(fit, ref_zero = TRUE, ref = NULL,
                      dist_type = c("hist", "density","none"), rug = FALSE,
                      color_dist = "#374E55", color_rcs = "#F79118", color_ribbon = NA) {
 
-  suppress_rcs_default_message <- function(expr) {
-    withCallingHandlers(
-      expr,
-      message = function(m) {
-        if (grepl("number of knots in rcs defaulting to", conditionMessage(m), fixed = TRUE)) {
-          invokeRestart("muffleMessage")
-        }
-      }
-    )
-  }
-
   # 1. 识别模型类型 ----------------------------------------------------------
   model_type <- class(fit)[1]
   if (!model_type %in% c("cph", "lrm", "ols")) {
@@ -79,7 +68,7 @@ yyds_rcs <- function(fit, ref_zero = TRUE, ref = NULL,
   }
 
   # 2. 提取变量和数据 -------------------------------------------------------
-  fit_formula <- suppress_rcs_default_message(formula(fit))
+  fit_formula <- formula(fit)
   vars <- all.vars(fit_formula)
   data <- eval(fit$call$data, envir = parent.frame())
   data <- data[, vars]
@@ -152,12 +141,10 @@ yyds_rcs <- function(fit, ref_zero = TRUE, ref = NULL,
         )
       )
 
-      suppress_rcs_default_message(
-        switch(model_type,
-               "cph" = cph(formula_rcs, data = data, x = TRUE, y = TRUE, surv = TRUE),
-               "lrm" = lrm(formula_rcs, data = data, x = TRUE, y = TRUE),
-               "ols" = ols(formula_rcs, data = data, x = TRUE, y = TRUE))
-      )
+      switch(model_type,
+             "cph" = cph(formula_rcs, data = data, x = TRUE, y = TRUE, surv = TRUE),
+             "lrm" = lrm(formula_rcs, data = data, x = TRUE, y = TRUE),
+             "ols" = ols(formula_rcs, data = data, x = TRUE, y = TRUE))
     })
     aics <- sapply(fits, AIC)
 
@@ -182,7 +169,7 @@ yyds_rcs <- function(fit, ref_zero = TRUE, ref = NULL,
 
   # 8. anova 得到 p 值 ------------------------------------------------------
   dual_cat(paste0(blurred("------------------------------------------")," P值结果 \n"))
-  aov <- suppress_rcs_default_message(anova(fit_rcs))
+  aov <- anova(fit_rcs)
   p_overall <- aov[1, "P"]
   p_nonlinear <- aov[2, "P"]
   dual_cat(sprintf("P_overall    = %.4g\n", p_overall))
@@ -206,9 +193,7 @@ yyds_rcs <- function(fit, ref_zero = TRUE, ref = NULL,
 
 
   # 10. 生成预测值 ----------------------------------------------------------
-  p <- suppress_rcs_default_message(
-    do.call(Predict, list(fit_rcs, as.name(xvar), ref.zero = ref_zero, fun = fun))
-  )
+  p <- do.call(Predict, list(fit_rcs, as.name(xvar), ref.zero = ref_zero, fun = fun))
 
   # 找到 yhat 的最小值和最大值
   min_yhat <- which.min(p$yhat)
