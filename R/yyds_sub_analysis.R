@@ -377,6 +377,76 @@ yyds_sub_analysis <- function(data = NULL,
 
     family_obj <- standardize_family(family_type)
     res_all <- list()
+    fmt_formula <- function(f) paste(deparse(f), collapse = " ")
+    cat_svy_failure <- function(stage, sub, lv = NULL, formula = NULL, reason = NULL) {
+      cat("\n[yyds_sub_analysis] design 分支跳过结果\n")
+      cat("  阶段: ", stage, "\n", sep = "")
+      cat("  分层变量: ", sub, "\n", sep = "")
+      if (!is.null(lv)) {
+        cat("  分层水平: ", lv, "\n", sep = "")
+      }
+      if (!is.null(formula)) {
+        cat("  模型公式: ", fmt_formula(formula), "\n", sep = "")
+      }
+      if (!is.null(reason)) {
+        cat("  原因: ", reason, "\n", sep = "")
+      }
+    }
+    make_complete_case_endpoint_lines <- function(design_sub, model_vars, sub, lv, formula = NULL) {
+      has_event <- !is.null(time) || family_type %in% c("binomial", "quasibinomial")
+      if (!isTRUE(has_event)) return(character())
+
+      data_sub <- design_sub$variables
+      model_vars <- unique(model_vars[!is.na(model_vars) & nzchar(model_vars)])
+      model_vars <- intersect(model_vars, names(data_sub))
+      if (!all(c(status, exposure) %in% model_vars)) return(character())
+
+      raw_n <- nrow(data_sub)
+      cc_idx <- stats::complete.cases(data_sub[, model_vars, drop = FALSE])
+      data_cc <- data_sub[cc_idx, , drop = FALSE]
+      cc_n <- nrow(data_cc)
+
+      exposure_values <- data_sub[[exposure]]
+      exposure_levels <- if (is.factor(exposure_values)) {
+        levels(exposure_values)
+      } else {
+        sort(unique(na.omit(as.character(exposure_values))))
+      }
+
+      status_num <- suppressWarnings(as.numeric(as.character(data_cc[[status]])))
+      event_flag <- if (all(is.na(status_num))) {
+        data_cc[[status]] == 1
+      } else {
+        status_num == 1
+      }
+
+      lines <- c(
+        "",
+        "[yyds_sub_analysis] complete-case 暴露分层终点分布",
+        paste0("  分层变量: ", sub),
+        paste0("  分层水平: ", lv)
+      )
+      if (!is.null(formula)) {
+        lines <- c(lines, paste0("  模型公式: ", fmt_formula(formula)))
+      }
+      lines <- c(
+        lines,
+        paste0("  complete-case N / 原始分层 N: ", cc_n, "/", raw_n),
+        paste0("  暴露变量: ", exposure)
+      )
+
+      for (lev in exposure_levels) {
+        idx <- as.character(data_cc[[exposure]]) == lev
+        n_lev <- sum(idx, na.rm = TRUE)
+        event_lev <- sum(event_flag[idx], na.rm = TRUE)
+        lines <- c(lines, paste0("    - ", lev, ": ", event_lev, "/", n_lev))
+      }
+      lines
+    }
+    cat_complete_case_endpoint <- function(endpoint_lines) {
+      if (length(endpoint_lines) == 0) return(invisible(NULL))
+      cat(paste0(endpoint_lines, collapse = "\n"), "\n", sep = "")
+    }
 
     for (sub in stratify_vars) {
       for (v in unique(c(exposure, sub))) {
@@ -400,15 +470,25 @@ yyds_sub_analysis <- function(data = NULL,
         as.formula(paste0(bt(status), " ~ ", rhs_base))
       }
 
+      fit_base_error <- NULL
       fit_base <- tryCatch({
         if (!is.null(time)) {
           survey::svycoxph(f_base, design = design)
         } else {
           survey::svyglm(f_base, design = design, family = family_obj)
         }
-      }, error = function(e) NULL)
+      }, error = function(e) {
+        fit_base_error <<- conditionMessage(e)
+        NULL
+      })
 
       if (is.null(fit_base)) {
+        cat_svy_failure(
+          stage = "交互检验模型拟合失败",
+          sub = sub,
+          formula = f_base,
+          reason = fit_base_error
+        )
         cat("Interaction term: ", exposure, ":", sub, " \n", sep = "")
         cat("Wald test p-value for interaction: NA\n")
         p_interaction_fmt <- "NA"
@@ -421,7 +501,12 @@ yyds_sub_analysis <- function(data = NULL,
             design = design
           ),
           error = function(e) {
-            message("Interaction test failed: ", e$message)
+            cat_svy_failure(
+              stage = "交互检验失败",
+              sub = sub,
+              formula = f_base,
+              reason = conditionMessage(e)
+            )
             "NA"
           }
         )
@@ -441,20 +526,65 @@ yyds_sub_analysis <- function(data = NULL,
         } else {
           as.formula(paste0(bt(status), " ~ ", rhs_lv))
         }
+        endpoint_lines <- make_complete_case_endpoint_lines(
+          design_sub = design_lv,
+          model_vars = c(status, time, exposure, adjust_lv),
+          sub = sub,
+          lv = lv,
+          formula = f_lv
+        )
 
+        fit_lv_error <- NULL
         fit_lv <- tryCatch({
           if (!is.null(time)) {
             survey::svycoxph(f_lv, design = design_lv)
           } else {
             survey::svyglm(f_lv, design = design_lv, family = family_obj)
           }
-        }, error = function(e) NULL)
-        if (is.null(fit_lv)) return(NULL)
+        }, error = function(e) {
+          fit_lv_error <<- conditionMessage(e)
+          NULL
+        })
+        if (is.null(fit_lv)) {
+          cat_complete_case_endpoint(endpoint_lines)
+          cat_svy_failure(
+            stage = "分层模型拟合失败",
+            sub = sub,
+            lv = lv,
+            formula = f_lv,
+            reason = fit_lv_error
+          )
+          return(NULL)
+        }
 
         has_event <- !is.null(time) || family_type %in% c("binomial", "quasibinomial")
-        tab <- yyds_table2(fit_lv, full = TRUE, event = TRUE)
+        tab <- tryCatch(
+          yyds_table2(fit_lv, full = TRUE, event = TRUE),
+          error = function(e) {
+            cat_complete_case_endpoint(endpoint_lines)
+            cat_svy_failure(
+              stage = "yyds_table2 提取失败",
+              sub = sub,
+              lv = lv,
+              formula = f_lv,
+              reason = conditionMessage(e)
+            )
+            NULL
+          }
+        )
+        if (is.null(tab)) return(NULL)
         tab <- extract_exposure_rows(tab, exposure, design_lv$variables[[exposure]], ref = TRUE)
-        if (nrow(tab) == 0) return(NULL)
+        if (nrow(tab) == 0) {
+          cat_complete_case_endpoint(endpoint_lines)
+          cat_svy_failure(
+            stage = "暴露变量结果为空",
+            sub = sub,
+            lv = lv,
+            formula = f_lv,
+            reason = paste0("yyds_table2 未返回暴露变量 ", exposure, " 的可提取结果")
+          )
+          return(NULL)
+        }
 
         effect_col <- grep("\\(95% CI\\)", names(tab), value = TRUE)[1]
         effect_num_col <- intersect(c("hr", "or", "rr", "β", "coef"), names(tab))[1]
