@@ -400,7 +400,7 @@ yyds_sub_analysis <- function(data = NULL,
         lines <- c(lines, "  complete-case 暴露分层终点分布:", endpoint_lines)
       }
       if (length(covariate_lines) > 0) {
-        lines <- c(lines, "  complete-case 矫正变量分类分布:", covariate_lines)
+        lines <- c(lines, "  complete-case 可疑矫正变量分类分布:", covariate_lines)
       }
       lines <- c(lines, "")
       message(paste(lines, collapse = "\n"))
@@ -448,6 +448,18 @@ yyds_sub_analysis <- function(data = NULL,
       if (length(adjust_vars) == 0 || nrow(data_cc) == 0) return(character())
 
       out <- character()
+      has_event <- (!is.null(time) || family_type %in% c("binomial", "quasibinomial")) &&
+        status %in% names(data_cc)
+      event_flag <- NULL
+      if (isTRUE(has_event)) {
+        status_num <- suppressWarnings(as.numeric(as.character(data_cc[[status]])))
+        event_flag <- if (all(is.na(status_num))) {
+          data_cc[[status]] == 1
+        } else {
+          status_num == 1
+        }
+      }
+
       for (v in adjust_vars) {
         x <- data_cc[[v]]
         n_unique <- length(unique(stats::na.omit(x)))
@@ -455,8 +467,39 @@ yyds_sub_analysis <- function(data = NULL,
         if (!isTRUE(is_categorical)) next
 
         tab <- table(x, useNA = "ifany")
+        observed_n <- as.integer(tab)
+        reasons <- character()
+        if (sum(observed_n > 0) <= 1) {
+          reasons <- c(reasons, "仅1个有效水平")
+        }
+        if (any(observed_n == 0)) {
+          reasons <- c(reasons, "存在空水平")
+        }
+        if (any(observed_n > 0 & observed_n < 5)) {
+          reasons <- c(reasons, "存在n<5水平")
+        }
+        if (isTRUE(has_event)) {
+          event_tab <- tapply(event_flag, x, sum, na.rm = TRUE)
+          event_tab <- event_tab[names(tab)]
+          event_tab[is.na(event_tab)] <- 0
+          nonevent_tab <- observed_n - as.integer(event_tab)
+          if (any(observed_n > 0 & as.integer(event_tab) == 0)) {
+            reasons <- c(reasons, "存在0事件水平")
+          }
+          if (any(observed_n > 0 & nonevent_tab == 0)) {
+            reasons <- c(reasons, "存在0非事件水平")
+          }
+        }
+        if (length(reasons) == 0) next
+
         pieces <- paste0(names(tab), "=", as.integer(tab))
-        out <- c(out, paste0("    - ", v, ": ", paste(pieces, collapse = ", ")))
+        out <- c(
+          out,
+          paste0(
+            "    - ", v, " [", paste(unique(reasons), collapse = "；"), "]: ",
+            paste(pieces, collapse = ", ")
+          )
+        )
       }
       out
     }
