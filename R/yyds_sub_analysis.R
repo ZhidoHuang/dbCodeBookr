@@ -378,7 +378,8 @@ yyds_sub_analysis <- function(data = NULL,
     family_obj <- standardize_family(family_type)
     res_all <- list()
     fmt_formula <- function(f) paste(deparse(f), collapse = " ")
-    cat_svy_failure <- function(stage, sub, lv = NULL, formula = NULL, reason = NULL) {
+    cat_svy_failure <- function(stage, sub, lv = NULL, formula = NULL, reason = NULL,
+                                endpoint_lines = character()) {
       cat("\n[yyds_sub_analysis] design 分支跳过结果\n")
       cat("  阶段: ", stage, "\n", sep = "")
       cat("  分层变量: ", sub, "\n", sep = "")
@@ -391,6 +392,11 @@ yyds_sub_analysis <- function(data = NULL,
       if (!is.null(reason)) {
         cat("  原因: ", reason, "\n", sep = "")
       }
+      if (length(endpoint_lines) > 0) {
+        cat("  complete-case 暴露分层终点分布:\n")
+        cat(paste0(endpoint_lines, collapse = "\n"), "\n", sep = "")
+      }
+      cat("\n")
     }
     make_complete_case_endpoint_lines <- function(design_sub, model_vars, sub, lv, formula = NULL) {
       has_event <- !is.null(time) || family_type %in% c("binomial", "quasibinomial")
@@ -420,20 +426,7 @@ yyds_sub_analysis <- function(data = NULL,
         status_num == 1
       }
 
-      lines <- c(
-        "",
-        "[yyds_sub_analysis] complete-case 暴露分层终点分布",
-        paste0("  分层变量: ", sub),
-        paste0("  分层水平: ", lv)
-      )
-      if (!is.null(formula)) {
-        lines <- c(lines, paste0("  模型公式: ", fmt_formula(formula)))
-      }
-      lines <- c(
-        lines,
-        paste0("  complete-case N / 原始分层 N: ", cc_n, "/", raw_n),
-        paste0("  暴露变量: ", exposure)
-      )
+      lines <- character()
 
       for (lev in exposure_levels) {
         idx <- as.character(data_cc[[exposure]]) == lev
@@ -442,10 +435,6 @@ yyds_sub_analysis <- function(data = NULL,
         lines <- c(lines, paste0("    - ", lev, ": ", event_lev, "/", n_lev))
       }
       lines
-    }
-    cat_complete_case_endpoint <- function(endpoint_lines) {
-      if (length(endpoint_lines) == 0) return(invisible(NULL))
-      cat(paste0(endpoint_lines, collapse = "\n"), "\n", sep = "")
     }
 
     for (sub in stratify_vars) {
@@ -546,13 +535,13 @@ yyds_sub_analysis <- function(data = NULL,
           NULL
         })
         if (is.null(fit_lv)) {
-          cat_complete_case_endpoint(endpoint_lines)
           cat_svy_failure(
             stage = "分层模型拟合失败",
             sub = sub,
             lv = lv,
             formula = f_lv,
-            reason = fit_lv_error
+            reason = fit_lv_error,
+            endpoint_lines = endpoint_lines
           )
           return(NULL)
         }
@@ -561,13 +550,13 @@ yyds_sub_analysis <- function(data = NULL,
         tab <- tryCatch(
           yyds_table2(fit_lv, full = TRUE, event = TRUE),
           error = function(e) {
-            cat_complete_case_endpoint(endpoint_lines)
             cat_svy_failure(
               stage = "yyds_table2 提取失败",
               sub = sub,
               lv = lv,
               formula = f_lv,
-              reason = conditionMessage(e)
+              reason = conditionMessage(e),
+              endpoint_lines = endpoint_lines
             )
             NULL
           }
@@ -575,13 +564,13 @@ yyds_sub_analysis <- function(data = NULL,
         if (is.null(tab)) return(NULL)
         tab <- extract_exposure_rows(tab, exposure, design_lv$variables[[exposure]], ref = TRUE)
         if (nrow(tab) == 0) {
-          cat_complete_case_endpoint(endpoint_lines)
           cat_svy_failure(
             stage = "暴露变量结果为空",
             sub = sub,
             lv = lv,
             formula = f_lv,
-            reason = paste0("yyds_table2 未返回暴露变量 ", exposure, " 的可提取结果")
+            reason = paste0("yyds_table2 未返回暴露变量 ", exposure, " 的可提取结果"),
+            endpoint_lines = endpoint_lines
           )
           return(NULL)
         }
