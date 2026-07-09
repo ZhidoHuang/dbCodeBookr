@@ -379,40 +379,47 @@ yyds_sub_analysis <- function(data = NULL,
     res_all <- list()
     fmt_formula <- function(f) paste(deparse(f), collapse = " ")
     cat_svy_failure <- function(stage, sub, lv = NULL, formula = NULL, reason = NULL,
-                                endpoint_lines = character()) {
-      cat("\n[yyds_sub_analysis] design 分支跳过结果\n")
-      cat("  阶段: ", stage, "\n", sep = "")
-      cat("  分层变量: ", sub, "\n", sep = "")
+                                endpoint_lines = character(),
+                                covariate_lines = character()) {
+      lines <- c(
+        "",
+        "[yyds_sub_analysis] design 分支跳过结果",
+        paste0("  阶段: ", stage),
+        paste0("  分层变量: ", sub)
+      )
       if (!is.null(lv)) {
-        cat("  分层水平: ", lv, "\n", sep = "")
+        lines <- c(lines, paste0("  分层水平: ", lv))
       }
       if (!is.null(formula)) {
-        cat("  模型公式: ", fmt_formula(formula), "\n", sep = "")
+        lines <- c(lines, paste0("  模型公式: ", fmt_formula(formula)))
       }
       if (!is.null(reason)) {
-        cat("  原因: ", reason, "\n", sep = "")
+        lines <- c(lines, paste0("  原因: ", reason))
       }
       if (length(endpoint_lines) > 0) {
-        cat("  complete-case 暴露分层终点分布:\n")
-        cat(paste0(endpoint_lines, collapse = "\n"), "\n", sep = "")
+        lines <- c(lines, "  complete-case 暴露分层终点分布:", endpoint_lines)
       }
-      cat("\n")
+      if (length(covariate_lines) > 0) {
+        lines <- c(lines, "  complete-case 矫正变量分类分布:", covariate_lines)
+      }
+      lines <- c(lines, "")
+      message(paste(lines, collapse = "\n"))
     }
-    make_complete_case_endpoint_lines <- function(design_sub, model_vars, sub, lv, formula = NULL) {
-      has_event <- !is.null(time) || family_type %in% c("binomial", "quasibinomial")
-      if (!isTRUE(has_event)) return(character())
-
+    make_complete_case_data <- function(design_sub, model_vars) {
       data_sub <- design_sub$variables
       model_vars <- unique(model_vars[!is.na(model_vars) & nzchar(model_vars)])
       model_vars <- intersect(model_vars, names(data_sub))
-      if (!all(c(status, exposure) %in% model_vars)) return(character())
+      if (length(model_vars) == 0) return(data_sub[0, , drop = FALSE])
 
-      raw_n <- nrow(data_sub)
       cc_idx <- stats::complete.cases(data_sub[, model_vars, drop = FALSE])
-      data_cc <- data_sub[cc_idx, , drop = FALSE]
-      cc_n <- nrow(data_cc)
+      data_sub[cc_idx, , drop = FALSE]
+    }
+    make_complete_case_endpoint_lines <- function(data_cc, design_sub) {
+      has_event <- !is.null(time) || family_type %in% c("binomial", "quasibinomial")
+      if (!isTRUE(has_event)) return(character())
+      if (!all(c(status, exposure) %in% names(data_cc))) return(character())
 
-      exposure_values <- data_sub[[exposure]]
+      exposure_values <- design_sub$variables[[exposure]]
       exposure_levels <- if (is.factor(exposure_values)) {
         levels(exposure_values)
       } else {
@@ -435,6 +442,23 @@ yyds_sub_analysis <- function(data = NULL,
         lines <- c(lines, paste0("    - ", lev, ": ", event_lev, "/", n_lev))
       }
       lines
+    }
+    make_complete_case_covariate_lines <- function(data_cc, adjust_vars) {
+      adjust_vars <- intersect(adjust_vars, names(data_cc))
+      if (length(adjust_vars) == 0 || nrow(data_cc) == 0) return(character())
+
+      out <- character()
+      for (v in adjust_vars) {
+        x <- data_cc[[v]]
+        n_unique <- length(unique(stats::na.omit(x)))
+        is_categorical <- is.factor(x) || is.character(x) || is.logical(x) || n_unique <= 10
+        if (!isTRUE(is_categorical)) next
+
+        tab <- table(x, useNA = "ifany")
+        pieces <- paste0(names(tab), "=", as.integer(tab))
+        out <- c(out, paste0("    - ", v, ": ", paste(pieces, collapse = ", ")))
+      }
+      out
     }
 
     for (sub in stratify_vars) {
@@ -478,8 +502,8 @@ yyds_sub_analysis <- function(data = NULL,
           formula = f_base,
           reason = fit_base_error
         )
-        cat("Interaction term: ", exposure, ":", sub, " \n", sep = "")
-        cat("Wald test p-value for interaction: NA\n")
+        message("Interaction term: ", exposure, ":", sub, " ")
+        message("Wald test p-value for interaction: NA")
         p_interaction_fmt <- "NA"
       } else {
         p_interaction_fmt <- tryCatch(
@@ -515,13 +539,10 @@ yyds_sub_analysis <- function(data = NULL,
         } else {
           as.formula(paste0(bt(status), " ~ ", rhs_lv))
         }
-        endpoint_lines <- make_complete_case_endpoint_lines(
-          design_sub = design_lv,
-          model_vars = c(status, time, exposure, adjust_lv),
-          sub = sub,
-          lv = lv,
-          formula = f_lv
-        )
+        diagnostic_model_vars <- c(status, time, exposure, adjust_lv)
+        diagnostic_data <- make_complete_case_data(design_lv, diagnostic_model_vars)
+        endpoint_lines <- make_complete_case_endpoint_lines(diagnostic_data, design_lv)
+        covariate_lines <- make_complete_case_covariate_lines(diagnostic_data, adjust_lv)
 
         fit_lv_error <- NULL
         fit_lv <- tryCatch({
@@ -541,7 +562,8 @@ yyds_sub_analysis <- function(data = NULL,
             lv = lv,
             formula = f_lv,
             reason = fit_lv_error,
-            endpoint_lines = endpoint_lines
+            endpoint_lines = endpoint_lines,
+            covariate_lines = covariate_lines
           )
           return(NULL)
         }
@@ -556,7 +578,8 @@ yyds_sub_analysis <- function(data = NULL,
               lv = lv,
               formula = f_lv,
               reason = conditionMessage(e),
-              endpoint_lines = endpoint_lines
+              endpoint_lines = endpoint_lines,
+              covariate_lines = covariate_lines
             )
             NULL
           }
@@ -570,7 +593,8 @@ yyds_sub_analysis <- function(data = NULL,
             lv = lv,
             formula = f_lv,
             reason = paste0("yyds_table2 未返回暴露变量 ", exposure, " 的可提取结果"),
-            endpoint_lines = endpoint_lines
+            endpoint_lines = endpoint_lines,
+            covariate_lines = covariate_lines
           )
           return(NULL)
         }
