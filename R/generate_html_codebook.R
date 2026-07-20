@@ -4,11 +4,12 @@
 #' **`generate_html_codebook()`** 将两个已格式化的数据框组合为一段**自包含的
 #' HTML 片段**，包括
 #' 1. **定义的组分概览**：按 *category* 分组的频数热力图
-#' 2. **定义的组分详情**：可折叠的 *variable-map* 卡片（点击展开标签 / 取值说明）
+#' 2. **定义的组分详情**：按 *category* 分组的静态 *variable-map* 卡片，
+#'    卡片中的标签和取值说明始终显示
 #'    - 变量名、原始变量映射、简要描述、详细注释
 #'
 #' 该片段可以直接插入 R Markdown / Shiny / Quarto，或写入文件并在浏览器中
-#' 打开。所有样式（CSS）、交互逻辑（JS）均已内嵌，无外部依赖。
+#' 打开。所有样式（CSS）均已内嵌，无外部依赖。
 #'
 #' @details
 #' ### 输入数据格式
@@ -26,7 +27,7 @@
 #'   | `Variable` | 必须与 `heat_df$Variable` 一一匹配 |
 #'   | `original_vars` | 原始变量名称（可用逗号分隔多个） |
 #'   | `easylabel`  | 一句话摘要 |
-#'   | `detail`   | **已编码/转义好的** HTML 字符串，作为展开内容 |
+#'   | `detail`   | **已编码/转义好的** HTML 字符串，作为卡片内容 |
 #'   其余列将被忽略。
 #'
 #' ### 颜色与布局
@@ -34,9 +35,10 @@
 #' * 奇数行：白 → `#264653`；偶数行：白 → 深红 (`#8b0000`)。
 #' * 表头和分类标题使用深色圆角条以保持视觉一致。
 #'
-#' ### 交互
+#' ### 导航与分组
 #' * 热力图中的变量名、分类名自动生成锚点，可与变量卡片互相跳转。
-#' * 点击 **卡片本身** 切换显示 / 隐藏标签内容（无需箭头按钮）。
+#' * 变量卡片为静态展示，标签和取值说明始终可见；分类分组仍可通过
+#'   原生 *details* 标题整体展开或收起。
 #'
 #' ### 注意事项
 #' 1. **字符编码**：函数按 *UTF-8* 写文件；Windows 用户请使用 UTF-8 R 会话或后续
@@ -204,7 +206,7 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL,
         summ <- esc(r[["easylabel"]])
         det  <- r[["detail"]]
         sprintf('
-<div class="data-card" onclick="toggleLabel(this)">
+<div class="data-card">
   <div class="var-name-line">
     <span class="var-name" id="var-%s">%s</span>
     <div class="mapping-container"><div class="mapping-info">← <span class="original">%s</span></div></div>
@@ -216,14 +218,6 @@ generate_html_codebook <- function(heat_df, meta_df, file = NULL,
       sprintf('<details id="cat-%s"><summary>%s</summary><div class="category-content">%s</div></details>',
               slug(cat), esc(cat), paste(cards, collapse = ""))
     }, character(1))
-
-    js <- '
-<script>
-function toggleLabel(card){
-  const lbl = card.querySelector(".var-label");
-  lbl.style.display = lbl.style.display === "block" ? "none" : "block";
-}
-</script>'
 
   # 将 color1 转换为 RGBA 格式（透明度10%）
   color1_rgba <- paste0(
@@ -281,8 +275,7 @@ function toggleLabel(card){
   box-shadow:0 1px 3px rgba(0,0,0,.05);
   padding:12px 18px;
   margin-bottom:12px;
-  border-radius:0 6px 6px 0;
-  cursor:pointer
+  border-radius:0 6px 6px 0
 }
 .variable-map .var-name-line{
   margin-bottom:6px;
@@ -343,7 +336,7 @@ function toggleLabel(card){
 </style>')
 
   paste0(css, '<div class="variable-map">', paste(details, collapse = ""),
-         '</div>', js)
+         '</div>')
   }
 
 ## ---- assemble ---------------------------------------------------------

@@ -1,7 +1,7 @@
 #' 生成变量代码本（Codebook）的 HTML 页面（卡片式说明）
 #'
 #' 根据变量元数据表生成一个用于展示代码本（codebook）的 HTML 页面。
-#' 页面以表格形式呈现，每个变量的详细说明通过可点击的卡片展开/收起，
+#' 页面以表格形式呈现，每个变量的详细说明通过静态卡片直接显示，
 #' 适合用于问卷、数据库或衍生变量的定义文档展示。
 #'
 #' @param meta_df 变量元数据数据框（data.frame）。
@@ -51,7 +51,7 @@ generate_html_definition <- function(meta_df, file = NULL, primary_color = "dark
           sprintf(
             '<td class="card-cell">
   <div class="card-wrapper">
-    <div class="data-card" onclick="toggleLabel(this)">
+    <div class="data-card">
       <div class="var-name-line">
         <span class="var-name">%s</span>
         <div class="mapping-block">
@@ -98,7 +98,7 @@ generate_html_definition <- function(meta_df, file = NULL, primary_color = "dark
 .plain-cell{text-align:center;font-size:15px;color:#2C3E50;}
 .card-cell{min-width:220px;max-width:360px;}
 .card-wrapper{min-width:200px;}
-.data-card{background:#F4F2F0;border-left:4px solid %s;box-shadow:0 1px 3px rgba(0,0,0,.05);padding:12px 18px;border-radius:0 6px 6px 0;cursor:pointer;}
+.data-card{background:#F4F2F0;border-left:4px solid %s;box-shadow:0 1px 3px rgba(0,0,0,.05);padding:12px 18px;border-radius:0 6px 6px 0;}
 .var-name-line{display:flex;align-items:center;gap:10px;}
 .var-name{font-size:18px;font-weight:bold;line-height:1.4;flex-shrink:0;}
 .mapping-block{display:flex;align-items:center;gap:6px;min-width:0;}
@@ -108,10 +108,6 @@ generate_html_definition <- function(meta_df, file = NULL, primary_color = "dark
 .var-label .fixed-table{border-collapse:collapse;}
 .var-label .fixed-table td{font-size:10px;color:#7f8c8d;padding:2px 8px;white-space:nowrap;font-weight:400!important;border:1px solid #ddd!important;}
 </style>
-
-<script>
-function toggleLabel(card){const lbl=card.querySelector(".var-label");if(!lbl)return;lbl.style.display=(lbl.style.display==="block")?"none":"block";}
-</script>
 ', primary_color, primary_color, primary_color, primary_color)
 
   html <- paste0(css_style, make_table())

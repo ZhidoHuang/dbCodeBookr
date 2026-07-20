@@ -8,7 +8,12 @@ generate_var_details(
   data,
   bar_color = "#AE4D4D",
   show_hist = FALSE,
-  hist_binwidth = NULL
+  hist_binwidth = NULL,
+  show_distribution_nav = FALSE,
+  show_cycle_heatmap = FALSE,
+  cycle_col = NULL,
+  cycle_order = NULL,
+  heatmap_color = bar_color
 )
 }
 \arguments{
@@ -19,12 +24,32 @@ generate_var_details(
 \item{show_hist}{逻辑值，是否显示连续变量的直方图，默认为FALSE}
 
 \item{hist_binwidth}{直方图组距，默认为NULL（自动）}
+
+\item{show_distribution_nav}{逻辑值，是否为完整类别分布表或连续变量直方图启用独立横向导航，默认为FALSE}
+
+\item{show_cycle_heatmap}{逻辑值，是否在每个变量详情末尾追加周期非缺失数热图，默认为FALSE}
+
+\item{cycle_col}{字符串，周期列名；仅在\code{show_cycle_heatmap = TRUE}时使用}
+
+\item{cycle_order}{字符向量，周期显示顺序；仅在\code{show_cycle_heatmap = TRUE}时使用}
+
+\item{heatmap_color}{周期热图主题色，默认为\code{bar_color}}
 }
 \value{
 字符向量，每个元素对应一个变量的HTML描述
 }
 \description{
 为数据集中的每个变量生成分布详情HTML，包括分类变量的频数百分比分布表和数值变量的统计摘要
+}
+\details{
+当\code{show_cycle_heatmap = TRUE}时，函数会在每个变量详情末尾追加一个原生HTML周期热图。
+热图按\code{cycle_order}显示该变量在各周期的非缺失数；无数据单元格留空。
+同一次调用中的全部变量共用统一色阶上限。热图表格使用\verb{width: 100\%}和
+\code{table-layout: fixed}，最小总宽度按\verb{length(cycle_order) * 42px}计算；
+周期较多时隐藏原生滚动条，并在热图左右边缘按需显示半透明渐变箭头；
+每次点击平滑移动约一个可视宽度并保留一格重叠，触屏设备仍可直接横向滑动。
+当\code{show_distribution_nav = TRUE}时，分类变量的完整类别分布表或连续变量的完整直方图
+会各自获得独立的横向导航；它们不与周期热图共享滚动状态。
 }
 \examples{
 \dontrun{
@@ -37,5 +62,15 @@ data <- data.frame(
 
 # 生成分布详情
 details <- generate_var_details(data, bar_color = "#4DA6FF")
+
+# 在每个变量详情末尾追加周期非缺失数热图
+data$year <- sample(c("2011", "2013", "2015"), 100, replace = TRUE)
+details_with_cycle <- generate_var_details(
+  data,
+  show_cycle_heatmap = TRUE,
+  cycle_col = "year",
+  cycle_order = c("2011", "2013", "2015"),
+  heatmap_color = "#2C7FB8"
+)
 }
 }

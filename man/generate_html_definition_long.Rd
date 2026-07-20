@@ -34,14 +34,15 @@ generate_html_definition_long(
 HTML 片段}，包括
 \enumerate{
 \item \strong{定义的组分概览}：按 \emph{category} 分组的频数热力图
-\item \strong{定义的组分详情}：可折叠的 \emph{variable-map} 卡片（点击展开标签 / 取值说明）
+\item \strong{定义的组分详情}：按 \emph{category} 分组的静态 \emph{variable-map} 卡片，
+卡片中的标签和取值说明始终显示
 \itemize{
 \item 变量名、原始变量映射、简要描述、详细注释
 }
 }
 
 该片段可以直接插入 R Markdown / Shiny / Quarto，或写入文件并在浏览器中
-打开。所有样式（CSS）、交互逻辑（JS）均已内嵌，无外部依赖。
+打开。所有样式（CSS）均已内嵌，无外部依赖。
 }
 \details{
 \subsection{输入数据格式}{
@@ -59,7 +60,7 @@ HTML 片段}，包括
    \code{Variable} \tab 必须与 \code{heat_df$Variable} 一一匹配 \cr
    \code{original_vars} \tab 原始变量名称（可用逗号分隔多个） \cr
    \code{easylabel} \tab 一句话摘要 \cr
-   \code{detail} \tab \strong{已编码/转义好的} HTML 字符串，作为展开内容 \cr
+   \code{detail} \tab \strong{已编码/转义好的} HTML 字符串，作为卡片内容 \cr
    其余列将被忽略。 \tab  \cr
 }
 
@@ -74,10 +75,11 @@ HTML 片段}，包括
 }
 }
 
-\subsection{交互}{
+\subsection{导航与分组}{
 \itemize{
 \item 热力图中的变量名、分类名自动生成锚点，可与变量卡片互相跳转。
-\item 点击 \strong{卡片本身} 切换显示 / 隐藏标签内容（无需箭头按钮）。
+\item 变量卡片为静态展示，标签和取值说明始终可见；章节和分类分组仍可通过
+原生 \emph{details} 标题整体展开或收起。
 }
 }
 
