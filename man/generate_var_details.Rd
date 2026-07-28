@@ -9,6 +9,7 @@ generate_var_details(
   bar_color = "#AE4D4D",
   show_hist = FALSE,
   hist_binwidth = NULL,
+  hist_mode = "linear",
   show_distribution_nav = FALSE,
   show_cycle_heatmap = FALSE,
   cycle_col = NULL,
@@ -23,7 +24,14 @@ generate_var_details(
 
 \item{show_hist}{逻辑值，是否显示连续变量的直方图，默认为FALSE}
 
-\item{hist_binwidth}{直方图组距，默认为NULL（自动）}
+\item{hist_binwidth}{直方图组距，默认为NULL，函数会根据实际取值范围自动选择自然刻度，
+将柱数控制在约12–16根，避免过密或过疏；也可传入单个正数，
+或以变量名命名的正数向量覆盖自动结果。}
+
+\item{hist_mode}{连续变量直方图模式。可取\code{"linear"}或\code{"zero_plus_log"}；
+也可传入以变量名命名的字符向量，只对指定变量启用相应模式。
+\code{"zero_plus_log"}会把0值单独展示，并按10倍间隔显示正值分布；
+连续变量顶部的范围与样本量摘要保持不变。}
 
 \item{show_distribution_nav}{逻辑值，是否为完整类别分布表或连续变量直方图启用独立横向导航，默认为FALSE}
 
@@ -44,12 +52,14 @@ generate_var_details(
 \details{
 当\code{show_cycle_heatmap = TRUE}时，函数会在每个变量详情末尾追加一个原生HTML周期热图。
 热图按\code{cycle_order}显示该变量在各周期的非缺失数；无数据单元格留空。
-同一次调用中的全部变量共用统一色阶上限。热图表格使用\verb{width: 100\%}和
-\code{table-layout: fixed}，最小总宽度按\verb{length(cycle_order) * 42px}计算；
-周期较多时隐藏原生滚动条，并在热图左右边缘按需显示半透明渐变箭头；
+同一次调用中的全部变量共用统一色阶上限，文字始终使用深色。
+6个及以下周期显示一行，超过6个周期时按顺序分成两行；
+每行的最小总宽度按该行最大周期数乘以42px计算。两行后仍溢出时隐藏原生滚动条，
+并在热图左右边缘按需显示半透明渐变箭头；
 每次点击平滑移动约一个可视宽度并保留一格重叠，触屏设备仍可直接横向滑动。
 当\code{show_distribution_nav = TRUE}时，分类变量的完整类别分布表或连续变量的完整直方图
 会各自获得独立的横向导航；它们不与周期热图共享滚动状态。
+线性直方图的横轴标签显示各分组的起点；整数断点不显示无意义的\code{.0}或\code{.5}。
 }
 \examples{
 \dontrun{

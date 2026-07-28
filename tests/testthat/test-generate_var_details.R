@@ -113,7 +113,7 @@ test_that("generate_var_details adds year-like cycle heatmap counts", {
 
   expect_true(all(grepl("dbcb-var-cycle-table", details, fixed = TRUE)))
   expect_match(details[[2]], "2015.*1.*2013.*1.*2011.*1")
-  expect_match(details[[3]], "2015.*2.*2013.*dbcb-var-cycle-count' style='color:[^']*;'></span></td>.*2011.*2")
+  expect_match(details[[3]], "2015.*2.*2013.*dbcb-var-cycle-count'></span></td>.*2011.*2")
   expect_false(grepl("2013</span><span class='dbcb-var-cycle-count'>0", details[[3]], fixed = TRUE))
 })
 
@@ -134,7 +134,7 @@ test_that("generate_var_details supports wave-like cycle names", {
 
   expect_true(all(grepl("dbcb-var-cycle-table", details, fixed = TRUE)))
   expect_match(details[[2]], "W1.*1.*W2.*1.*W3.*1")
-  expect_match(details[[3]], "W1.*1.*W2.*2.*W3.*dbcb-var-cycle-count' style='color:[^']*;'></span></td>")
+  expect_match(details[[3]], "W1.*1.*W2.*2.*W3.*dbcb-var-cycle-count'></span></td>")
 })
 
 test_that("generate_var_details uses a global heatmap color scale", {
@@ -181,6 +181,8 @@ test_that("generate_var_details cycle heatmap is responsive and isolated", {
   expect_match(details_5[[2]], "border:1px solid #DDDDDD !important")
   expect_match(details_5[[2]], "td\\.dbcb-var-cycle-cell \\.dbcb-var-cycle-label\\{[^}]*font-size:9px")
   expect_match(details_5[[2]], "td\\.dbcb-var-cycle-cell \\.dbcb-var-cycle-count\\{[^}]*font-size:12px")
+  expect_match(details_5[[2]], "dbcb-var-cycle-count\\{[^}]*color:#1f2933")
+  expect_false(grepl("dbcb-var-cycle-count' style='color:#ffffff", details_5[[2]], fixed = TRUE))
   expect_match(details_5[[2]], "dbcb-var-cycle-title\\{[^}]*color:#7f8c8d;[^}]*font-family:inherit;[^}]*font-size:10px;[^}]*line-height:1.55;[^}]*font-weight:400")
   expect_match(details_5[[2]], "dbcb-var-cycle-block\\{margin-top:8px")
   expect_match(details_5[[2]], "scrollbar-width:none")
@@ -213,7 +215,28 @@ test_that("generate_var_details cycle heatmap is responsive and isolated", {
 
   expect_match(details_10[[2]], "overflow-x:auto")
   expect_false(grepl("dbcb-var-cycle-nav.is-scrollable", details_10[[2]], fixed = TRUE))
-  expect_match(details_10[[2]], "min-width:max\\(100%, 420px\\)")
+  expect_match(details_10[[2]], "min-width:max\\(100%, 210px\\)")
+  expect_equal(
+    sum(gregexpr("<tr><td class='dbcb-var-cycle-cell'", details_10[[2]], fixed = TRUE)[[1]] > 0),
+    2
+  )
+
+  fixture_11 <- data.frame(
+    period = paste0("P", 1:11),
+    x = seq_len(11)
+  )
+  details_11 <- generate_var_details(
+    fixture_11,
+    show_cycle_heatmap = TRUE,
+    cycle_col = "period",
+    cycle_order = paste0("P", 1:11),
+    heatmap_color = "#2C7FB8"
+  )
+  expect_match(details_11[[2]], "min-width:max\\(100%, 252px\\)")
+  expect_equal(
+    sum(gregexpr("<tr><td class='dbcb-var-cycle-cell'", details_11[[2]], fixed = TRUE)[[1]] > 0),
+    2
+  )
 })
 
 test_that("generate_var_details cycle heatmap keeps equal counts equal colors and blanks missing counts", {
@@ -235,7 +258,7 @@ test_that("generate_var_details cycle heatmap keeps equal counts equal colors an
   cell_colors <- colors[grepl("rgb\\(|#f7f6f4", colors)]
 
   expect_identical(cell_colors[1], cell_colors[2])
-  expect_match(details[[2]], "C</span><span class='dbcb-var-cycle-count' style='color:[^']*;'></span>")
+  expect_match(details[[2]], "C</span><span class='dbcb-var-cycle-count'></span>")
   expect_false(grepl(">0</span>", details[[2]], fixed = TRUE))
 })
 
@@ -260,5 +283,94 @@ test_that("generate_var_details validates cycle heatmap arguments", {
   expect_error(
     generate_var_details(fixture, show_cycle_heatmap = TRUE, cycle_col = "period", cycle_order = "P1", heatmap_color = "not-a-color"),
     "heatmap_color"
+  )
+})
+
+test_that("generate_var_details supports named histogram bin widths", {
+  fixture <- data.frame(
+    age = 20:40,
+    score = seq(0, 100, length.out = 21)
+  )
+
+  details <- generate_var_details(
+    fixture,
+    show_hist = TRUE,
+    hist_binwidth = c(age = 2)
+  )
+
+  expect_match(details[[1]], "title='\\[20\\.0, 22\\.0\\):")
+  expect_match(details[[2]], "data-hist-mode='linear'")
+  expect_error(
+    generate_var_details(fixture, hist_binwidth = c(missing = 2)),
+    "不存在的变量"
+  )
+  expect_error(
+    generate_var_details(fixture, hist_binwidth = 0),
+    "正数"
+  )
+})
+
+test_that("generate_var_details automatically chooses readable natural histogram breaks", {
+  fixture <- data.frame(age = 50:100)
+
+  details <- generate_var_details(
+    fixture,
+    show_hist = TRUE
+  )
+
+  expect_match(details[[1]], "title='\\[50\\.0, 55\\.0\\):")
+  expect_false(grepl("title='\\[50\\.0, 52\\.0\\):", details[[1]]))
+  expect_match(details[[1]], "class='hist-label'[^>]*>50</div>")
+  expect_false(grepl("class='hist-label'[^>]*>52\\.5</div>", details[[1]]))
+})
+
+test_that("generate_var_details supports named zero-plus-log histograms", {
+  fixture <- data.frame(
+    amount = c(rep(0, 4), 1:12, 100, 1000, 10000, 100000, 1000000),
+    score = seq_len(21)
+  )
+
+  details <- generate_var_details(
+    fixture,
+    show_hist = TRUE,
+    hist_mode = c(amount = "zero_plus_log")
+  )
+
+  amount_html <- details[[1]]
+  score_html <- details[[2]]
+
+  expect_match(amount_html, "data-hist-mode='zero_plus_log'")
+  expect_match(amount_html, "data-hist-zero-summary='true'")
+  expect_match(amount_html, "0 值")
+  expect_match(amount_html, "&gt;0的分布")
+  expect_match(amount_html, "范围:")
+  expect_match(amount_html, "样本量:")
+  expect_false(grepl("正值中位数|四分位数", amount_html))
+  expect_match(amount_html, "1万")
+  expect_match(score_html, "data-hist-mode='linear'")
+  expect_false(grepl("data-hist-zero-summary='true'", score_html, fixed = TRUE))
+})
+
+test_that("generate_var_details validates histogram modes", {
+  fixture <- data.frame(amount = seq_len(20))
+
+  expect_error(
+    generate_var_details(fixture, hist_mode = "log"),
+    "hist_mode"
+  )
+  expect_error(
+    generate_var_details(
+      fixture,
+      hist_mode = c(missing = "zero_plus_log")
+    ),
+    "不存在的变量"
+  )
+  expect_error(
+    generate_var_details(
+      data.frame(amount = c(-1, seq_len(20))),
+      show_hist = TRUE,
+      hist_mode = c(amount = "zero_plus_log")
+    ),
+    "只适用于非负变量"
   )
 })
