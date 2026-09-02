@@ -346,7 +346,7 @@ test_that("generate_var_details supports named zero-plus-log histograms", {
   expect_match(amount_html, "范围:")
   expect_match(amount_html, "样本量:")
   expect_false(grepl("正值中位数|四分位数", amount_html))
-  expect_match(amount_html, "1万")
+  expect_match(amount_html, "1.0万", fixed = TRUE)
   expect_match(score_html, "data-hist-mode='linear'")
   expect_false(grepl("data-hist-zero-summary='true'", score_html, fixed = TRUE))
 })
@@ -373,4 +373,27 @@ test_that("generate_var_details validates histogram modes", {
     ),
     "只适用于非负变量"
   )
+})
+
+test_that("generate_var_details separates negative, zero, and positive values", {
+  fixture <- data.frame(
+    signed = c(-1000000, seq(-100, -1), rep(0, 20), seq_len(100), 1000000)
+  )
+
+  details <- generate_var_details(
+    fixture,
+    show_hist = TRUE,
+    hist_mode = c(signed = "signed_zero_plus_log")
+  )
+
+  signed_html <- details[[1]]
+
+  expect_match(signed_html, "data-hist-mode='signed_zero_plus_log'")
+  expect_match(signed_html, "data-hist-negative-summary='true'")
+  expect_match(signed_html, "data-hist-zero-summary='true'")
+  expect_match(signed_html, "data-hist-accounted='222'")
+  expect_match(signed_html, "&lt;0")
+  expect_match(signed_html, "0 值")
+  expect_match(signed_html, "&gt;0的分布")
+  expect_match(signed_html, "范围 -1,000,000 ~ -1")
 })

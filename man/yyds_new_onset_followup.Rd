@@ -103,7 +103,7 @@ yyds_new_onset_followup(
 
 \itemize{
 \item 随访期间发生疾病：
-66kFBIADpvmkBEbb3in1jsMXn5WBgJK5-166kFBIADpvmkBEbb3in1jsMXn5WBgJK5-\code{1}，随访时间为 \code{NA}；
+Plrv8jgeKegc3ig9qTCuoKjeh8ZdNLXY-1Plrv8jgeKegc3ig9qTCuoKjeh8ZdNLXY-\code{1}，随访时间为 \code{NA}；
 
 \item 所有疾病状态均缺失：
 疾病事件状态和随访时间均为 \code{NA}。
@@ -111,7 +111,7 @@ yyds_new_onset_followup(
 
 随访时间的单位为月。每个随访时间变量按照以下方式命名：
 
-66kFBIADpvmkBEbb3in1jsMXn5WBgJK5-1\code{JB_heart_problem} 对应的随访时间变量为
+Plrv8jgeKegc3ig9qTCuoKjeh8ZdNLXY-1\code{JB_heart_problem} 对应的随访时间变量为
 \code{JB_heart_problem_followup}。
 }
 \section{基线已有疾病的处理}{

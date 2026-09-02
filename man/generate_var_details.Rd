@@ -28,9 +28,11 @@ generate_var_details(
 将柱数控制在约12–16根，避免过密或过疏；也可传入单个正数，
 或以变量名命名的正数向量覆盖自动结果。}
 
-\item{hist_mode}{连续变量直方图模式。可取\code{"linear"}或\code{"zero_plus_log"}；
+\item{hist_mode}{连续变量直方图模式。可取\code{"linear"}、\code{"zero_plus_log"}或
+\code{"signed_zero_plus_log"}；
 也可传入以变量名命名的字符向量，只对指定变量启用相应模式。
 \code{"zero_plus_log"}会把0值单独展示，并按10倍间隔显示正值分布；
+\code{"signed_zero_plus_log"}会把负值和0值分别汇总展示，正值仍按10倍间隔分组。
 连续变量顶部的范围与样本量摘要保持不变。}
 
 \item{show_distribution_nav}{逻辑值，是否为完整类别分布表或连续变量直方图启用独立横向导航，默认为FALSE}

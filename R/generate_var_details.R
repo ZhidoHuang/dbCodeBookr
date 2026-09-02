@@ -17,9 +17,11 @@
 #' @param hist_binwidth 直方图组距，默认为NULL，函数会根据实际取值范围自动选择自然刻度，
 #'   将柱数控制在约12–16根，避免过密或过疏；也可传入单个正数，
 #'   或以变量名命名的正数向量覆盖自动结果。
-#' @param hist_mode 连续变量直方图模式。可取`"linear"`或`"zero_plus_log"`；
+#' @param hist_mode 连续变量直方图模式。可取`"linear"`、`"zero_plus_log"`或
+#'   `"signed_zero_plus_log"`；
 #'   也可传入以变量名命名的字符向量，只对指定变量启用相应模式。
 #'   `"zero_plus_log"`会把0值单独展示，并按10倍间隔显示正值分布；
+#'   `"signed_zero_plus_log"`会把负值和0值分别汇总展示，正值仍按10倍间隔分组。
 #'   连续变量顶部的范围与样本量摘要保持不变。
 #' @param show_distribution_nav 逻辑值，是否为完整类别分布表或连续变量直方图启用独立横向导航，默认为FALSE
 #' @param show_cycle_heatmap 逻辑值，是否在每个变量详情末尾追加周期非缺失数热图，默认为FALSE
@@ -99,11 +101,11 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
     pretty(value_range, n = 14)
   }
 
-  valid_hist_modes <- c("linear", "zero_plus_log")
+  valid_hist_modes <- c("linear", "zero_plus_log", "signed_zero_plus_log")
   if (!is.character(hist_mode) || length(hist_mode) == 0 ||
       any(is.na(hist_mode)) || any(!hist_mode %in% valid_hist_modes)) {
     stop(
-      "hist_mode 只能使用 \"linear\" 或 \"zero_plus_log\"。",
+      "hist_mode 只能使用 \"linear\"、\"zero_plus_log\" 或 \"signed_zero_plus_log\"。",
       call. = FALSE
     )
   }
@@ -134,13 +136,16 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
   format_hist_number <- function(x, compact = FALSE) {
     if (!is.finite(x)) return("")
     if (compact && abs(x) >= 1e8) {
-      return(paste0(format(signif(x / 1e8, 3), trim = TRUE, scientific = FALSE), "亿"))
+      return(sprintf("%.1f亿", x / 1e8))
     }
     if (compact && abs(x) >= 1e4) {
-      return(paste0(format(signif(x / 1e4, 3), trim = TRUE, scientific = FALSE), "万"))
+      return(sprintf("%.1f万", x / 1e4))
     }
     if (compact && abs(x) >= 1e3) {
-      return(paste0(format(signif(x / 1e3, 3), trim = TRUE, scientific = FALSE), "千"))
+      return(sprintf("%.1f千", x / 1e3))
+    }
+    if (compact) {
+      return(sprintf("%.1f", x))
     }
     format(signif(x, 6), big.mark = ",", trim = TRUE, scientific = FALSE)
   }
@@ -439,13 +444,16 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
     .hist-zero-summary {
       width: 100%%;
       display: grid;
-      grid-template-columns: auto minmax(90px, 1fr) auto;
+      grid-template-columns: 32px minmax(90px, 1fr) 92px;
       align-items: center;
       gap: 8px;
       margin-bottom: 12px;
       color: #667085;
       font-size: 11px;
       box-sizing: border-box;
+    }
+    .hist-zero-summary > span:last-child {
+      text-align: right;
     }
     .hist-zero-track {
       height: 8px;
@@ -625,7 +633,7 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
           )
         }
         stats_text <- sprintf(
-          "范围: %s (%s ~ %s) ; &emsp;&emsp; 样本量: %d",
+          "均值: %s；范围: %s ~ %s；样本量: %d",
           mean_val,
           min_val,
           max_val,
@@ -633,10 +641,40 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
         )
 
         if (show_hist) {
-          if (identical(current_hist_mode, "zero_plus_log")) {
+          if (current_hist_mode %in% c("zero_plus_log", "signed_zero_plus_log")) {
+            negative_values <- var[!is.na(var) & var < 0]
+            negative_count <- length(negative_values)
+            negative_pct <- if (n > 0) negative_count / n * 100 else 0
             zero_count <- sum(var == 0, na.rm = TRUE)
             zero_pct <- if (n > 0) zero_count / n * 100 else 0
             positive_values <- var[!is.na(var) & var > 0]
+
+            negative_html <- if (identical(current_hist_mode, "signed_zero_plus_log")) {
+              negative_range <- if (negative_count > 0) {
+                sprintf(
+                  "，范围 %s ~ %s",
+                  format_hist_number(min(negative_values)),
+                  format_hist_number(max(negative_values))
+                )
+              } else {
+                ""
+              }
+              sprintf(
+                paste0(
+                  "<div class='hist-zero-summary' data-hist-negative-summary='true'>",
+                  "<span>&lt;0</span>",
+                  "<span class='hist-zero-track'><span class='hist-zero-fill' style='width:%.1f%%;'></span></span>",
+                  "<span title='负值%s'>%s（%.1f%%）</span>",
+                  "</div>"
+                ),
+                negative_pct,
+                negative_range,
+                format_hist_number(negative_count),
+                negative_pct
+              )
+            } else {
+              ""
+            }
 
             zero_html <- sprintf(
               paste0(
@@ -654,7 +692,12 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
             if (length(positive_values) == 0) {
               hist_html <- paste0(
                 hist_style,
-                "<div class='hist-container' data-hist-mode='zero_plus_log'>",
+                "<div class='hist-container' data-hist-mode='",
+                current_hist_mode,
+                "' data-hist-accounted='",
+                negative_count + zero_count,
+                "'>",
+                negative_html,
                 zero_html,
                 "</div>"
               )
@@ -711,7 +754,12 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
             }, character(1))
 
             hist_body <- paste0(
-              "<div data-hist-mode='zero_plus_log'>",
+              "<div data-hist-mode='",
+              current_hist_mode,
+              "' data-hist-accounted='",
+              negative_count + zero_count + sum(counts),
+              "'>",
+              negative_html,
               zero_html,
               "<div class='hist-positive-title'>&gt;0的分布</div>",
               "<div class='hist-inner'>",
