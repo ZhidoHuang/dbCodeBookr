@@ -191,7 +191,12 @@ generate_var_details <- function(data, bar_color = "#AE4D4D", show_hist = FALSE,
         sum(!is.na(x[idx]))
       }, numeric(1))
     }, numeric(length(cycle_order_chr)))
-    count_matrix <- t(count_matrix)
+    count_matrix <- t(matrix(
+      count_matrix,
+      nrow = length(cycle_order_chr),
+      ncol = ncol(data),
+      dimnames = list(cycle_order_chr, names(data))
+    ))
     colnames(count_matrix) <- cycle_order_chr
 
     global_max <- suppressWarnings(max(count_matrix, na.rm = TRUE))

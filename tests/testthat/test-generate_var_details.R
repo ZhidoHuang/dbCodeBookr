@@ -117,6 +117,25 @@ test_that("generate_var_details adds year-like cycle heatmap counts", {
   expect_false(grepl("2013</span><span class='dbcb-var-cycle-count'>0", details[[3]], fixed = TRUE))
 })
 
+test_that("generate_var_details keeps one-cycle counts aligned with variables", {
+  fixture <- data.frame(
+    year = rep("2009", 3),
+    x = c(1, NA, 3),
+    y = c(NA_real_, NA_real_, NA_real_)
+  )
+  details <- generate_var_details(
+    fixture,
+    show_cycle_heatmap = TRUE,
+    cycle_col = "year",
+    cycle_order = "2009"
+  )
+
+  expect_length(details, 3)
+  expect_match(details[[1]], "2009</span><span class='dbcb-var-cycle-count'>3</span>", fixed = TRUE)
+  expect_match(details[[2]], "2009</span><span class='dbcb-var-cycle-count'>2</span>", fixed = TRUE)
+  expect_match(details[[3]], "2009</span><span class='dbcb-var-cycle-count'></span>", fixed = TRUE)
+})
+
 test_that("generate_var_details supports wave-like cycle names", {
   fixture <- data.frame(
     wave = c("W1", "W2", "W2", "W3"),
