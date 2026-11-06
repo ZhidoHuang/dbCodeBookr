@@ -121,11 +121,11 @@ recode.chr <- function(x) {
 #' # 生成的代码如下,
 #'
 #' # recode.num(df$age)
-#' df$age <- as.numeric(dplyr::case_when(
+#' df$age <- case_when(
 #'   df$age == "> 80 year" ~ "> 80 year",
 #'   df$age == "<20 year" ~ "<20 year",
 #'   TRUE ~ df$age
-#' ))
+#' ) %>% as.numeric()
 #'
 recode.num <- function(x) {
   var_name <- deparse(substitute(x))
@@ -167,9 +167,9 @@ recode.num <- function(x) {
   unique_values <- unique(x[is.na(suppressWarnings(as.numeric(x))) & !is.na(x)])
   if (length(unique_values) == 0) return(invisible(x))
 
-  code <- paste0("# recode.num(", var_name, ")\n", var_name, " <- as.numeric(dplyr::case_when(\n")
+  code <- paste0("# recode.num(", var_name, ")\n", var_name, " <- case_when(\n")
   code <- paste0(code, paste0("  ", var_name, " == \"", unique_values, "\" ~ \"", unique_values, "\",", collapse = "\n"), "\n")
-  code <- paste0(code, "  TRUE ~ ", var_name, "\n))")
+  code <- paste0(code, "  TRUE ~ ", var_name, "\n) %>% as.numeric()")
 
   if (rstudioapi::isAvailable()) {
     context <- rstudioapi::getActiveDocumentContext()
