@@ -19,6 +19,8 @@
 #' @importFrom rstudioapi isAvailable getActiveDocumentContext modifyRange
 #' @importFrom dplyr case_when
 #' @examples
+#' library("dplyr")
+#'
 #' # 创建示例数据
 #' df <- data.frame(
 #'   age = c(28, 20, 30, 35, 36, "> 80 year", "<20 year"),
@@ -34,7 +36,7 @@
 #' # 生成的代码如下,
 #'
 #' # recode.chr(df$edu)
-#' df$edu <- dplyr::case_when(
+#' df$edu <- case_when(
 #'   df$edu == "college or above" ~ "college or above",
 #'   df$edu == "Below high school" ~ "Below high school",
 #'   df$edu == "High school" ~ "High school",
@@ -50,7 +52,7 @@ recode.chr <- function(x) {
 
   # 生成代码
   var_name <- deparse(substitute(x))
-  code <- paste0("# recode.chr(",var_name,")\n",var_name, " <- dplyr::case_when(\n")
+  code <- paste0("# recode.chr(",var_name,")\n",var_name, " <- case_when(\n")
   for (val in unique_values) {
     code <- paste0(code, "  ", var_name, " == \"", val, "\" ~ \"", val, "\",\n")
   }
@@ -106,6 +108,8 @@ recode.chr <- function(x) {
 #' @importFrom rstudioapi isAvailable getActiveDocumentContext modifyRange
 #' @importFrom dplyr case_when
 #' @examples
+#' library("dplyr")
+#'
 #' # 创建示例数据
 #' df <- data.frame(
 #'   age = c(28, 20, 30, 35, 36, "> 80 year", "<20 year"),

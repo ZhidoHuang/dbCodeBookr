@@ -24,6 +24,8 @@ generating recode code in RStudio.
 帮助快速重新编码。
 }
 \examples{
+library("dplyr")
+
 # 创建示例数据
 df <- data.frame(
   age = c(28, 20, 30, 35, 36, "> 80 year", "<20 year"),
@@ -39,7 +41,7 @@ recode.chr(df$edu)
 # 生成的代码如下,
 
 # recode.chr(df$edu)
-df$edu <- dplyr::case_when(
+df$edu <- case_when(
   df$edu == "college or above" ~ "college or above",
   df$edu == "Below high school" ~ "Below high school",
   df$edu == "High school" ~ "High school",

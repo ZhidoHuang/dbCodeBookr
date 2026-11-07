@@ -24,6 +24,8 @@ generating recode code in RStudio.
 帮助快速重新编码。
 }
 \examples{
+library("dplyr")
+
 # 创建示例数据
 df <- data.frame(
   age = c(28, 20, 30, 35, 36, "> 80 year", "<20 year"),
